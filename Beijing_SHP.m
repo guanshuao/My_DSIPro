@@ -32,7 +32,7 @@ c.NumWorkers = NumWorkers;
 parpool(c, NumWorkers);      
 
 CalWin = [21 21];
-[SHP_BWS_21]=SHP_SelPoint_Parallel(mlistack.datastack, CalWin, Alpha, EstAgr, NumWorkers);
+[SHP_BWS_21]=SHP_SelPoint(mlistack.datastack, CalWin, Alpha, EstAgr, NumWorkers);
 save('/titan/guanshuao/Beijing_Sentinel/ML/SHP_BWS_21.mat', 'SHP_BWS_21', '-v7.3');
 
 SHP_BWS_19 = SHP_Resize(SHP_BWS_21, [19 19]);
