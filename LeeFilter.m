@@ -1,8 +1,5 @@
 function img_filtered = LeeFilter(img, win_size, looks)
 
-    if nargin < 2 || isempty(win_size)
-        win_size = 7; % 默认窗口大小为7
-    end
     if nargin < 3 || isempty(looks)
         looks = 1;
     end

@@ -34,18 +34,24 @@ parpool(c, NumWorkers);
 CalWin = [21 21];
 [SHP_BWS_21]=SHP_SelPoint(mlistack.datastack, CalWin, Alpha, EstAgr, NumWorkers);
 save('/titan/guanshuao/Beijing_Sentinel/ML/SHP_BWS_21.mat', 'SHP_BWS_21', '-v7.3');
+delete(gcp('nocreate'));
 
 SHP_BWS_19 = SHP_Resize(SHP_BWS_21, [19 19]);
 save('/titan/guanshuao/Beijing_Sentinel/ML/SHP_BWS_19.mat', 'SHP_BWS_19', '-v7.3');
+clear SHP_BWS_19;
 
 SHP_BWS_17 = SHP_Resize(SHP_BWS_21, [17 17]);
 save('/titan/guanshuao/Beijing_Sentinel/ML/SHP_BWS_17.mat', 'SHP_BWS_17', '-v7.3');
+clear SHP_BWS_17;
 
 SHP_BWS_15 = SHP_Resize(SHP_BWS_21, [15 15]);
 save('/titan/guanshuao/Beijing_Sentinel/ML/SHP_BWS_15.mat', 'SHP_BWS_15', '-v7.3');
+clear SHP_BWS_15;
 
 SHP_BWS_13 = SHP_Resize(SHP_BWS_21, [13 13]);
 save('/titan/guanshuao/Beijing_Sentinel/ML/SHP_BWS_13.mat', 'SHP_BWS_13', '-v7.3');
+clear SHP_BWS_13;
 
 SHP_BWS_11 = SHP_Resize(SHP_BWS_21, [11 11]);
 save('/titan/guanshuao/Beijing_Sentinel/ML/SHP_BWS_11.mat', 'SHP_BWS_11', '-v7.3');
+clear SHP_BWS_11;

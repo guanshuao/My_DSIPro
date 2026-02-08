@@ -66,10 +66,6 @@ CalWin = SHP.CalWin;
 RadiusRow = (CalWin(1)-1)/2;
 RadiusCol = (CalWin(2)-1)/2;
 
-% 确保数据类型为single以节省内存
-mlistack = single(mlistack);
-infstack = single(infstack);
-
 %% 根据并行数选择处理模式
 if NumWorkers == 1
     % 串行模式：调用原始算法
@@ -128,7 +124,6 @@ end
 function [Coh, Ph] = AdpCohEst_Serial_Stack(mlistack, infstack, idx, SHP, BiasCorr, ...
                                              nlines, nwidths, npages, RadiusRow, RadiusCol)
     
-    CalWin = SHP.CalWin;
     Coh = zeros(nlines, nwidths, npages, 'single');
     
     for ii = 1:npages
@@ -154,35 +149,30 @@ function [Coh, Ph] = AdpCohEst_Serial_Stack(mlistack, infstack, idx, SHP, BiasCo
                 MasterValue = MasterValue(SHP.PixelInd(:,num));
                 SlaveValue = SlaveValue(SHP.PixelInd(:,num));
                 InterfValue = InterfValue(SHP.PixelInd(:,num));
-                nu(kk,jj) = mean(InterfValue, 'omitnan');
-                de1(kk,jj) = mean(MasterValue, 'omitnan');
-                de2(kk,jj) = mean(SlaveValue, 'omitnan');
+                nu(kk,jj) = mean(InterfValue);
+                de1(kk,jj) = mean(MasterValue);
+                de2(kk,jj) = mean(SlaveValue);
                 num = num + 1;
             end
         end
         
-        denominator = sqrt(de1.*de2);
-        denominator(denominator == 0) = NaN;
-        Coh(:,:,ii) = nu ./ denominator;
-        
-        % 清理中间变量
-        clear m1 m2 Intf nu de1 de2 denominator;
+        Coh(:,:,ii) = nu ./ sqrt(de1.*de2);
         
         fprintf('adp. coherence: %3d / %d is finished...\n', ii, npages);
     end
     
-    % 处理NaN和Inf值
-    Coh(isnan(Coh) | isinf(Coh)) = 0;
-    CohComplex = Coh;
+    Coh(isnan(Coh)) = 0;
+    
+    if nargout > 1
+        Ph = angle(Coh);
+    end
+    
     Coh = abs(Coh);
     
     % Bias correction
     if strcmpi(BiasCorr, 'y')
         Coh = applyBiasCorrection_Stack(Coh, SHP, nlines, nwidths, npages, RadiusRow, RadiusCol);
     end
-    
-    Ph = angle(CohComplex);
-    clear CohComplex;
 end
 
 %% ========================================================================
@@ -191,7 +181,6 @@ end
 function Coh = AdpCohEst_Serial_Average(mlistack, infstack, idx, SHP, BiasCorr, ...
                                          nlines, nwidths, npages, RadiusRow, RadiusCol)
     
-    CalWin = SHP.CalWin;
     CohSum = zeros(nlines, nwidths, 'single');
     
     for ii = 1:npages
@@ -217,17 +206,15 @@ function Coh = AdpCohEst_Serial_Average(mlistack, infstack, idx, SHP, BiasCorr, 
                 MasterValue = MasterValue(SHP.PixelInd(:,num));
                 SlaveValue = SlaveValue(SHP.PixelInd(:,num));
                 InterfValue = InterfValue(SHP.PixelInd(:,num));
-                nu(kk,jj) = mean(InterfValue, 'omitnan');
-                de1(kk,jj) = mean(MasterValue, 'omitnan');
-                de2(kk,jj) = mean(SlaveValue, 'omitnan');
+                nu(kk,jj) = mean(InterfValue);
+                de1(kk,jj) = mean(MasterValue);
+                de2(kk,jj) = mean(SlaveValue);
                 num = num + 1;
             end
         end
         
-        denominator = sqrt(de1.*de2);
-        denominator(denominator == 0) = NaN;
-        CohSingle = nu ./ denominator;
-        CohSingle(isnan(CohSingle) | isinf(CohSingle)) = 0;
+        CohSingle = nu ./ sqrt(de1.*de2);
+        CohSingle(isnan(CohSingle)) = 0;
         CohSingle = abs(CohSingle);
         
         % Bias correction for current page
@@ -237,14 +224,10 @@ function Coh = AdpCohEst_Serial_Average(mlistack, infstack, idx, SHP, BiasCorr, 
         
         CohSum = CohSum + CohSingle;
         
-        % 清理中间变量
-        clear m1 m2 Intf nu de1 de2 denominator CohSingle;
-        
         fprintf('adp. coherence: %3d / %d is finished...\n', ii, npages);
     end
     
     Coh = CohSum / npages;
-    clear CohSum;
 end
 
 %% ========================================================================
@@ -252,8 +235,6 @@ end
 %  ========================================================================
 function [Coh, Ph] = AdpCohEst_Parallel_Stack(mlistack, infstack, idx, SHP, BiasCorr, ...
                                                nlines, nwidths, npages, RadiusRow, RadiusCol, NumWorkers)
-    
-    CalWin = SHP.CalWin;
     
     %% 计算分块参数（按行分块）
     blockInfo = computeBlockInfo(nlines, NumWorkers, RadiusRow);
@@ -263,38 +244,16 @@ function [Coh, Ph] = AdpCohEst_Parallel_Stack(mlistack, infstack, idx, SHP, Bias
     %% 准备各分块的数据
     blockData_mli = cell(actualNumBlocks, 1);
     blockData_inf = cell(actualNumBlocks, 1);
-    blockData_SHP = cell(actualNumBlocks, 1);
     
     for b = 1:actualNumBlocks
         startRow = blockInfo(b).startRow;
         endRow = blockInfo(b).endRow;
-        
-        % 提取当前分块的数据
         blockData_mli{b} = mlistack(startRow:endRow, :, :);
         blockData_inf{b} = infstack(startRow:endRow, :, :);
-        
-        % 提取对应的SHP索引
-        % SHP.PixelInd 是 CalWin(1)*CalWin(2) × (nlines*nwidths) 的矩阵
-        % 需要提取对应行范围的像素索引
-        validStartRow = blockInfo(b).globalStartRow;
-        validEndRow = blockInfo(b).globalEndRow;
-        numValidRows = validEndRow - validStartRow + 1;
-        
-        % 计算全局像素索引范围
-        pixelIndices = zeros(1, numValidRows * nwidths);
-        count = 0;
-        for col = 1:nwidths
-            for row = validStartRow:validEndRow
-                count = count + 1;
-                pixelIndices(count) = (col-1)*nlines + row;
-            end
-        end
-        blockData_SHP{b}.PixelInd = SHP.PixelInd(:, pixelIndices);
-        blockData_SHP{b}.CalWin = CalWin;
     end
     
-    % 清理原始大矩阵以释放内存
-    clear mlistack infstack;
+    % 提取各分块的SHP索引
+    blockData_SHP = extractBlockSHP(SHP, blockInfo, nlines, nwidths);
     
     %% 并行处理各分块
     blockResults = cell(actualNumBlocks, 1);
@@ -311,7 +270,7 @@ function [Coh, Ph] = AdpCohEst_Parallel_Stack(mlistack, infstack, idx, SHP, Bias
         fprintf('分块 %d/%d 处理完成\n', b, actualNumBlocks);
     end
     
-    % 清理分块数据
+    % 清理分块数据（parfor后不再需要）
     clear blockData_mli blockData_inf blockData_SHP;
     
     %% 合并结果
@@ -320,18 +279,11 @@ function [Coh, Ph] = AdpCohEst_Parallel_Stack(mlistack, infstack, idx, SHP, Bias
     Ph = zeros(nlines, nwidths, npages, 'single');
     
     for b = 1:actualNumBlocks
-        validResult = blockResults{b};
-        blockResults{b} = [];  % 立即释放内存
-        
         globalStartRow = blockInfo(b).globalStartRow;
         globalEndRow = blockInfo(b).globalEndRow;
-        
-        Coh(globalStartRow:globalEndRow, :, :) = validResult.Coh;
-        Ph(globalStartRow:globalEndRow, :, :) = validResult.Ph;
-        
-        clear validResult;
+        Coh(globalStartRow:globalEndRow, :, :) = blockResults{b}.Coh;
+        Ph(globalStartRow:globalEndRow, :, :) = blockResults{b}.Ph;
     end
-    clear blockResults;
     
     %% Bias correction
     if strcmpi(BiasCorr, 'y')
@@ -343,86 +295,73 @@ end
 
 %% ========================================================================
 %  并行模式 - Average 输出（空间分块）
+%  按页处理流程：分块计算相干性 -> 合并为整张 -> BiasCorr -> 累加到sum -> 除以页数
 %  ========================================================================
 function Coh = AdpCohEst_Parallel_Average(mlistack, infstack, idx, SHP, BiasCorr, ...
                                            nlines, nwidths, npages, RadiusRow, RadiusCol, NumWorkers)
-    
-    CalWin = SHP.CalWin;
     
     %% 计算分块参数
     blockInfo = computeBlockInfo(nlines, NumWorkers, RadiusRow);
     actualNumBlocks = length(blockInfo);
     disp(['实际分块数: ', num2str(actualNumBlocks)]);
     
-    %% 准备各分块的数据
-    blockData_mli = cell(actualNumBlocks, 1);
-    blockData_inf = cell(actualNumBlocks, 1);
-    blockData_SHP = cell(actualNumBlocks, 1);
+    %% 预先准备各分块的 SHP 索引（只需计算一次）
+    blockSHP_all = extractBlockSHP(SHP, blockInfo, nlines, nwidths);
     
-    for b = 1:actualNumBlocks
-        startRow = blockInfo(b).startRow;
-        endRow = blockInfo(b).endRow;
+    %% 初始化累加变量
+    CohSum = zeros(nlines, nwidths, 'single');
+    
+    %% 按页处理
+    for ii = 1:npages
+        %% 1. 准备当前页的分块数据
+        blockData_mli = cell(actualNumBlocks, 1);
+        blockData_inf = cell(actualNumBlocks, 1);
         
-        blockData_mli{b} = mlistack(startRow:endRow, :, :);
-        blockData_inf{b} = infstack(startRow:endRow, :, :);
-        
-        validStartRow = blockInfo(b).globalStartRow;
-        validEndRow = blockInfo(b).globalEndRow;
-        numValidRows = validEndRow - validStartRow + 1;
-        
-        pixelIndices = zeros(1, numValidRows * nwidths);
-        count = 0;
-        for col = 1:nwidths
-            for row = validStartRow:validEndRow
-                count = count + 1;
-                pixelIndices(count) = (col-1)*nlines + row;
-            end
+        for b = 1:actualNumBlocks
+            startRow = blockInfo(b).startRow;
+            endRow = blockInfo(b).endRow;
+            
+            % 只读取当前页需要的两个 mli 和一个 inf
+            blockData_mli{b}.m1 = mlistack(startRow:endRow, :, idx(ii,1));
+            blockData_mli{b}.m2 = mlistack(startRow:endRow, :, idx(ii,2));
+            blockData_inf{b} = infstack(startRow:endRow, :, ii);
         end
-        blockData_SHP{b}.PixelInd = SHP.PixelInd(:, pixelIndices);
-        blockData_SHP{b}.CalWin = CalWin;
+        
+        %% 2. 并行计算各分块的相干性
+        blockResults = cell(actualNumBlocks, 1);
+        
+        parfor b = 1:actualNumBlocks
+            blockResults{b} = processBlock_Average_SinglePage(blockData_mli{b}, blockData_inf{b}, ...
+                                                               blockSHP_all{b}, RadiusRow, RadiusCol, ...
+                                                               blockInfo(b), nwidths);
+        end
+        
+        %% 3. 合并为整张相干性
+        CohSingle = zeros(nlines, nwidths, 'single');
+        for b = 1:actualNumBlocks
+            globalStartRow = blockInfo(b).globalStartRow;
+            globalEndRow = blockInfo(b).globalEndRow;
+            CohSingle(globalStartRow:globalEndRow, :) = blockResults{b};
+        end
+        
+        %% 4. 进行偏差矫正（使用完整的相干性矩阵和完整的 SHP）
+        if strcmpi(BiasCorr, 'y')
+            CohSingle = applyBiasCorrection_Single(CohSingle, SHP, nlines, nwidths, RadiusRow, RadiusCol);
+        end
+        
+        %% 5. 累加到 sum 中间变量
+        CohSum = CohSum + CohSingle;
+        
+        fprintf('adp. coherence (parallel): %3d / %d is finished...\n', ii, npages);
     end
     
-    clear mlistack infstack;
-    
-    %% 并行处理各分块
-    blockResults = cell(actualNumBlocks, 1);
-    
-    disp('开始并行计算...');
-    parfor b = 1:actualNumBlocks
-        fprintf('分块 %d/%d 开始处理...\n', b, actualNumBlocks);
-        
-        blockResults{b} = processBlock_Average(blockData_mli{b}, blockData_inf{b}, ...
-                                                blockData_SHP{b}, idx, npages, BiasCorr, ...
-                                                RadiusRow, RadiusCol, blockInfo(b), nwidths);
-        
-        fprintf('分块 %d/%d 处理完成\n', b, actualNumBlocks);
-    end
-    
-    clear blockData_mli blockData_inf blockData_SHP;
-    
-    %% 合并结果
-    disp('正在合并分块结果...');
-    Coh = zeros(nlines, nwidths, 'single');
-    
-    for b = 1:actualNumBlocks
-        validResult = blockResults{b};
-        blockResults{b} = [];
-        
-        globalStartRow = blockInfo(b).globalStartRow;
-        globalEndRow = blockInfo(b).globalEndRow;
-        
-        Coh(globalStartRow:globalEndRow, :) = validResult;
-        
-        clear validResult;
-    end
-    clear blockResults;
+    Coh = CohSum / npages;
 end
 
 %% ========================================================================
 %  计算分块信息
 %  ========================================================================
 function blockInfo = computeBlockInfo(nlines, NumWorkers, RadiusRow)
-    
     validRowsPerBlock = ceil(nlines / NumWorkers);
     blockInfo = struct('startRow', {}, 'endRow', {}, ...
                        'validStartRow', {}, 'validEndRow', {}, ...
@@ -454,12 +393,37 @@ function blockInfo = computeBlockInfo(nlines, NumWorkers, RadiusRow)
 end
 
 %% ========================================================================
+%  提取分块对应的SHP索引
+%  ========================================================================
+function blockSHP = extractBlockSHP(SHP, blockInfo, nlines, nwidths)
+    numBlocks = length(blockInfo);
+    blockSHP = cell(numBlocks, 1);
+    
+    for b = 1:numBlocks
+        validStartRow = blockInfo(b).globalStartRow;
+        validEndRow = blockInfo(b).globalEndRow;
+        numValidRows = validEndRow - validStartRow + 1;
+        
+        % 计算全局像素索引范围
+        pixelIndices = zeros(1, numValidRows * nwidths);
+        count = 0;
+        for col = 1:nwidths
+            for row = validStartRow:validEndRow
+                count = count + 1;
+                pixelIndices(count) = (col-1)*nlines + row;
+            end
+        end
+        blockSHP{b}.PixelInd = SHP.PixelInd(:, pixelIndices);
+        blockSHP{b}.CalWin = SHP.CalWin;
+    end
+end
+
+%% ========================================================================
 %  处理单个分块 - Stack 模式
 %  ========================================================================
 function result = processBlock_Stack(blockMli, blockInf, blockSHP, idx, npages, ...
                                       RadiusRow, RadiusCol, blockInfo, nwidths)
     
-    CalWin = blockSHP.CalWin;
     validStartRow = blockInfo.validStartRow;
     validEndRow = blockInfo.validEndRow;
     numValidRows = validEndRow - validStartRow + 1;
@@ -494,17 +458,15 @@ function result = processBlock_Stack(blockMli, blockInf, blockSHP, idx, npages, 
                 SlaveValue = SlaveValue(blockSHP.PixelInd(:,num));
                 InterfValue = InterfValue(blockSHP.PixelInd(:,num));
                 
-                nu(kk,jj) = mean(InterfValue, 'omitnan');
-                de1(kk,jj) = mean(MasterValue, 'omitnan');
-                de2(kk,jj) = mean(SlaveValue, 'omitnan');
+                nu(kk,jj) = mean(InterfValue);
+                de1(kk,jj) = mean(MasterValue);
+                de2(kk,jj) = mean(SlaveValue);
                 num = num + 1;
             end
         end
         
-        denominator = sqrt(de1.*de2);
-        denominator(denominator == 0) = NaN;
-        CohSingle = nu ./ denominator;
-        CohSingle(isnan(CohSingle) | isinf(CohSingle)) = 0;
+        CohSingle = nu ./ sqrt(de1.*de2);
+        CohSingle(isnan(CohSingle)) = 0;
         
         result.Ph(:,:,ii) = angle(CohSingle);
         result.Coh(:,:,ii) = abs(CohSingle);
@@ -512,84 +474,51 @@ function result = processBlock_Stack(blockMli, blockInf, blockSHP, idx, npages, 
 end
 
 %% ========================================================================
-%  处理单个分块 - Average 模式
+%  处理单个分块 - Average 模式（单页）
 %  ========================================================================
-function result = processBlock_Average(blockMli, blockInf, blockSHP, idx, npages, BiasCorr, ...
-                                        RadiusRow, RadiusCol, blockInfo, nwidths)
+function result = processBlock_Average_SinglePage(blockMli, blockInf, blockSHP, ...
+                                                   RadiusRow, RadiusCol, blockInfo, nwidths)
     
-    CalWin = blockSHP.CalWin;
     validStartRow = blockInfo.validStartRow;
     validEndRow = blockInfo.validEndRow;
     numValidRows = validEndRow - validStartRow + 1;
     
-    % 使用累加变量而非存储完整堆栈
-    CohSum = zeros(numValidRows, nwidths, 'single');
+    % 获取当前页的 mli 数据
+    m1 = blockMli.m1;
+    m2 = blockMli.m2;
+    Intf = sqrt(m1.*m2) .* blockInf;
     
-    for ii = 1:npages
-        m1 = blockMli(:,:,idx(ii,1));
-        m2 = blockMli(:,:,idx(ii,2));
-        Intf = sqrt(m1.*m2) .* blockInf(:,:,ii);
-        
-        m1 = padarray(m1, [RadiusRow RadiusCol], 'symmetric');
-        m2 = padarray(m2, [RadiusRow RadiusCol], 'symmetric');
-        Intf = padarray(Intf, [RadiusRow RadiusCol], 'symmetric');
-        
-        nu = zeros(numValidRows, nwidths, 'single');
-        de1 = nu; de2 = nu;
-        num = 1;
-        
-        for jj = 1:nwidths
-            for kk = 1:numValidRows
-                x_global = jj + RadiusCol;
-                y_global = kk + validStartRow - 1 + RadiusRow;
-                
-                MasterValue = m1(y_global-RadiusRow:y_global+RadiusRow, x_global-RadiusCol:x_global+RadiusCol);
-                SlaveValue = m2(y_global-RadiusRow:y_global+RadiusRow, x_global-RadiusCol:x_global+RadiusCol);
-                InterfValue = Intf(y_global-RadiusRow:y_global+RadiusRow, x_global-RadiusCol:x_global+RadiusCol);
-                
-                MasterValue = MasterValue(blockSHP.PixelInd(:,num));
-                SlaveValue = SlaveValue(blockSHP.PixelInd(:,num));
-                InterfValue = InterfValue(blockSHP.PixelInd(:,num));
-                
-                nu(kk,jj) = mean(InterfValue, 'omitnan');
-                de1(kk,jj) = mean(MasterValue, 'omitnan');
-                de2(kk,jj) = mean(SlaveValue, 'omitnan');
-                num = num + 1;
-            end
+    m1 = padarray(m1, [RadiusRow RadiusCol], 'symmetric');
+    m2 = padarray(m2, [RadiusRow RadiusCol], 'symmetric');
+    Intf = padarray(Intf, [RadiusRow RadiusCol], 'symmetric');
+    
+    nu = zeros(numValidRows, nwidths, 'single');
+    de1 = nu; de2 = nu;
+    num = 1;
+    
+    for jj = 1:nwidths
+        for kk = 1:numValidRows
+            x_global = jj + RadiusCol;
+            y_global = kk + validStartRow - 1 + RadiusRow;
+            
+            MasterValue = m1(y_global-RadiusRow:y_global+RadiusRow, x_global-RadiusCol:x_global+RadiusCol);
+            SlaveValue = m2(y_global-RadiusRow:y_global+RadiusRow, x_global-RadiusCol:x_global+RadiusCol);
+            InterfValue = Intf(y_global-RadiusRow:y_global+RadiusRow, x_global-RadiusCol:x_global+RadiusCol);
+            
+            MasterValue = MasterValue(blockSHP.PixelInd(:,num));
+            SlaveValue = SlaveValue(blockSHP.PixelInd(:,num));
+            InterfValue = InterfValue(blockSHP.PixelInd(:,num));
+            
+            nu(kk,jj) = mean(InterfValue);
+            de1(kk,jj) = mean(MasterValue);
+            de2(kk,jj) = mean(SlaveValue);
+            num = num + 1;
         end
-        
-        denominator = sqrt(de1.*de2);
-        denominator(denominator == 0) = NaN;
-        CohSingle = nu ./ denominator;
-        CohSingle(isnan(CohSingle) | isinf(CohSingle)) = 0;
-        CohSingle = abs(CohSingle);
-        
-        % Bias correction for current page (in-place)
-        if strcmpi(BiasCorr, 'y')
-            tmp = padarray(CohSingle, [RadiusRow RadiusCol], 'symmetric');
-            CohCorrected = zeros(numValidRows, nwidths, 'single');
-            num2 = 1;
-            for jj2 = 1:nwidths
-                for kk2 = 1:numValidRows
-                    x_global2 = jj2 + RadiusCol;
-                    y_global2 = kk2 + RadiusRow;
-                    CohValue = tmp(y_global2-RadiusRow:y_global2+RadiusRow, x_global2-RadiusCol:x_global2+RadiusCol);
-                    CohValue = CohValue(blockSHP.PixelInd(:,num2));
-                    CohValue(CohValue <= 0) = NaN;
-                    CohCorrected(kk2,jj2) = mean(log(CohValue), 'omitnan');
-                    num2 = num2 + 1;
-                end
-            end
-            CohSingle = exp(CohCorrected);
-            CohSingle(isnan(CohSingle) | isinf(CohSingle)) = 0;
-        end
-        
-        % 累加到中间变量
-        CohSum = CohSum + CohSingle;
     end
     
-    % 返回平均值
-    result = CohSum / npages;
+    CohSingle = nu ./ sqrt(de1.*de2);
+    CohSingle(isnan(CohSingle)) = 0;
+    result = abs(CohSingle);
 end
 
 %% ========================================================================
@@ -607,8 +536,7 @@ function Coh = applyBiasCorrection_Stack(Coh, SHP, nlines, nwidths, npages, Radi
                 y_global = kk + RadiusRow;
                 CohValue = tmp(y_global-RadiusRow:y_global+RadiusRow, x_global-RadiusCol:x_global+RadiusCol, ii);
                 CohValue = CohValue(SHP.PixelInd(:,num));
-                CohValue(CohValue <= 0) = NaN;
-                Coh(kk,jj,ii) = mean(log(CohValue), 'omitnan');
+                Coh(kk,jj,ii) = mean(log(CohValue));
                 num = num + 1;
             end
         end
@@ -616,7 +544,6 @@ function Coh = applyBiasCorrection_Stack(Coh, SHP, nlines, nwidths, npages, Radi
     end
     
     Coh = exp(Coh);
-    Coh(isnan(Coh) | isinf(Coh)) = 0;
 end
 
 %% ========================================================================
@@ -631,29 +558,14 @@ function Coh = applyBiasCorrection_Stack_Parallel(Coh, SHP, nlines, nwidths, npa
     
     % 准备分块数据
     blockData_Coh = cell(actualNumBlocks, 1);
-    blockData_SHP = cell(actualNumBlocks, 1);
-    
     for b = 1:actualNumBlocks
         startRow = blockInfo(b).startRow;
         endRow = blockInfo(b).endRow;
-        
         blockData_Coh{b} = Coh(startRow:endRow, :, :);
-        
-        validStartRow = blockInfo(b).globalStartRow;
-        validEndRow = blockInfo(b).globalEndRow;
-        numValidRows = validEndRow - validStartRow + 1;
-        
-        pixelIndices = zeros(1, numValidRows * nwidths);
-        count = 0;
-        for col = 1:nwidths
-            for row = validStartRow:validEndRow
-                count = count + 1;
-                pixelIndices(count) = (col-1)*nlines + row;
-            end
-        end
-        blockData_SHP{b}.PixelInd = SHP.PixelInd(:, pixelIndices);
-        blockData_SHP{b}.CalWin = SHP.CalWin;
     end
+    
+    % 提取各分块的SHP索引
+    blockData_SHP = extractBlockSHP(SHP, blockInfo, nlines, nwidths);
     
     % 并行处理
     blockResults = cell(actualNumBlocks, 1);
@@ -662,21 +574,12 @@ function Coh = applyBiasCorrection_Stack_Parallel(Coh, SHP, nlines, nwidths, npa
                                                        npages, RadiusRow, RadiusCol, blockInfo(b));
     end
     
-    clear blockData_Coh blockData_SHP;
-    
     % 合并结果
     for b = 1:actualNumBlocks
-        validResult = blockResults{b};
-        blockResults{b} = [];
-        
         globalStartRow = blockInfo(b).globalStartRow;
         globalEndRow = blockInfo(b).globalEndRow;
-        
-        Coh(globalStartRow:globalEndRow, :, :) = validResult;
-        
-        clear validResult;
+        Coh(globalStartRow:globalEndRow, :, :) = blockResults{b};
     end
-    clear blockResults;
 end
 
 %% ========================================================================
@@ -701,15 +604,13 @@ function result = processBiasCorrection_Block(blockCoh, blockSHP, npages, Radius
                 x_global = jj + RadiusCol;
                 CohValue = tmp(y_global-RadiusRow:y_global+RadiusRow, x_global-RadiusCol:x_global+RadiusCol, ii);
                 CohValue = CohValue(blockSHP.PixelInd(:,num));
-                CohValue(CohValue <= 0) = NaN;
-                result(kk,jj,ii) = mean(log(CohValue), 'omitnan');
+                result(kk,jj,ii) = mean(log(CohValue));
                 num = num + 1;
             end
         end
     end
     
     result = exp(result);
-    result(isnan(result) | isinf(result)) = 0;
 end
 
 %% ========================================================================
@@ -727,12 +628,10 @@ function CohSingle = applyBiasCorrection_Single(CohSingle, SHP, nlines, nwidths,
             y_global = kk + RadiusRow;
             CohValue = tmp(y_global-RadiusRow:y_global+RadiusRow, x_global-RadiusCol:x_global+RadiusCol);
             CohValue = CohValue(SHP.PixelInd(:,num));
-            CohValue(CohValue <= 0) = NaN;
-            CohCorrected(kk,jj) = mean(log(CohValue), 'omitnan');
+            CohCorrected(kk,jj) = mean(log(CohValue));
             num = num + 1;
         end
     end
     
     CohSingle = exp(CohCorrected);
-    CohSingle(isnan(CohSingle) | isinf(CohSingle)) = 0;
 end
