@@ -1,7 +1,8 @@
 function img_filtered = LeeFilter(img, win_size, looks)
 
-    if nargin < 3 || isempty(looks)
-        looks = 1;
+    % 强制输入三个参数
+    if nargin < 3
+        error('需要三个输入参数：img, win_size, looks');
     end
 
     % 在计算局部均值/方差时忽略无效像元，输出中保持这些像元为 NaN

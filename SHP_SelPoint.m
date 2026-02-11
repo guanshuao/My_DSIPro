@@ -235,7 +235,7 @@ function SHP = SHP_SelPoint_BWS_Parallel(mlistack, CalWin, Alpha, nlines, nwidth
     pool = gcp('nocreate');
     if isempty(pool)
         disp('正在启动并行池...');
-        parpool;
+        parpool('local', NumBlocks);
     else
         disp(['并行池已就绪，工作进程数: ', num2str(pool.NumWorkers)]);
     end
