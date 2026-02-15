@@ -1,10 +1,10 @@
-function [SHP]=SHP_SelPoint(mlistack,CalWin,Alpha,EstAgr,NumBlocks)
+function [SHP]=SHP_SelPoint(mlistack,CalWin,Alpha,EstAgr,NumBlocks,Connection)
 %SHP_SelPoint 并行版本的同质像元(SHP)选取函数
 %   本函数用于在SAR强度图堆栈上选取统计同质像元(Statistically Homogeneous Pixels)
 %   针对BWS算法进行了并行优化，大幅提升计算速度
 %
 %   用法:
-%       [SHP]=SHP_SelPoint(mlistack,CalWin,Alpha,EstAgr,NumBlocks)
+%       [SHP]=SHP_SelPoint(mlistack,CalWin,Alpha,EstAgr,NumBlocks,Connection)
 %   
 %   输入参数:
 %   - mlistack: 高度 × 宽度 × 页数 的三维强度图堆栈
@@ -14,6 +14,9 @@ function [SHP]=SHP_SelPoint(mlistack,CalWin,Alpha,EstAgr,NumBlocks)
 %               默认 'FaSHPS'
 %   - NumBlocks: 并行分块数量，默认为可用CPU核心数
 %               仅对BWS算法有效，FaSHPS算法忽略此参数
+%   - Connection: 是否进行连通性分析（默认true）
+%               true: 仅保留与中心像元处于同一连通区域的同质像元（使用bwlabel）
+%               false: 不做连通性约束，窗口内所有通过检验的像元都视为同质像元
 %
 %   输出参数:
 %   - SHP.PixelInd: CalWin(1)*CalWin(2) × (高度*宽度) 的逻辑矩阵
@@ -48,6 +51,10 @@ function [SHP]=SHP_SelPoint(mlistack,CalWin,Alpha,EstAgr,NumBlocks)
 %   ======================================================================
 
 %% 参数默认值设置
+if nargin < 6 || isempty(Connection)
+    Connection = true;
+end
+
 if nargin < 5 || isempty(NumBlocks)
     % 默认为1，即串行模式（与原始SHP_SelPoint兼容）
     NumBlocks = 1;
@@ -87,19 +94,19 @@ if strcmpi(EstAgr, 'FaSHPS')
     % FaSHPS算法：使用原始串行实现（已经很快）
     disp('使用FaSHPS算法（串行模式）...');
     SHP = SHP_SelPoint_FaSHPS(mlistack, CalWin, Alpha, nlines, nwidths, npages, ...
-                               RadiusRow, RadiusCol, InitRow, InitCol);
+                               RadiusRow, RadiusCol, InitRow, InitCol, Connection);
 else
     % BWS算法
     if NumBlocks == 1
         % 串行模式：与原始SHP_SelPoint完全一致
         disp('使用BWS算法（串行模式）...');
         SHP = SHP_SelPoint_BWS_Serial(mlistack, CalWin, Alpha, nlines, nwidths, npages, ...
-                                       RadiusRow, RadiusCol, InitRow, InitCol);
+                                       RadiusRow, RadiusCol, InitRow, InitCol, Connection);
     else
         % 并行模式
         disp(['使用BWS算法（并行模式，', num2str(NumBlocks), '个分块）...']);
         SHP = SHP_SelPoint_BWS_Parallel(mlistack, CalWin, Alpha, nlines, nwidths, npages, ...
-                                         RadiusRow, RadiusCol, InitRow, InitCol, NumBlocks);
+                                         RadiusRow, RadiusCol, InitRow, InitCol, NumBlocks, Connection);
     end
 end
 
@@ -121,7 +128,7 @@ end
 %  FaSHPS算法实现（串行版本，与原函数一致）
 %  ========================================================================
 function SHP = SHP_SelPoint_FaSHPS(mlistack, CalWin, Alpha, nlines, nwidths, npages, ...
-                                    RadiusRow, RadiusCol, InitRow, InitCol)
+                                    RadiusRow, RadiusCol, InitRow, InitCol, Connection)
     
     % 边缘镜像扩展
     mlistack = padarray(mlistack, [RadiusRow RadiusCol], 'symmetric');
@@ -165,8 +172,13 @@ function SHP = SHP_SelPoint_FaSHPS(mlistack, CalWin, Alpha, nlines, nwidths, npa
             SeedPoint(InitRow, InitCol) = true;
             
             % 连通性分析
-            LL = bwlabel(SeedPoint);
-            SHP.PixelInd(:, num) = LL(:) == LL(InitRow, InitCol);
+            if Connection
+                LL = bwlabel(SeedPoint);
+                SHP.PixelInd(:, num) = LL(:) == LL(InitRow, InitCol);
+            else
+                SeedPoint(InitRow, InitCol) = true;
+                SHP.PixelInd(:, num) = SeedPoint(:);
+            end
             num = num + 1;
             
             if num == all_step * p
@@ -180,13 +192,14 @@ function SHP = SHP_SelPoint_FaSHPS(mlistack, CalWin, Alpha, nlines, nwidths, npa
     SHP.BroNum = sum(SHP.PixelInd, 1);
     SHP.BroNum = uint16(reshape(SHP.BroNum(:), [nlines, nwidths]));
     SHP.CalWin = CalWin;
+    SHP.Connection = logical(Connection);
 end
 
 %% ========================================================================
 %  BWS算法串行实现（与原始SHP_SelPoint完全一致）
 %  ========================================================================
 function SHP = SHP_SelPoint_BWS_Serial(mlistack, CalWin, Alpha, nlines, nwidths, npages, ...
-                                        RadiusRow, RadiusCol, InitRow, InitCol)
+                                        RadiusRow, RadiusCol, InitRow, InitCol, Connection)
     
     % 边缘镜像扩展
     mlistack = padarray(mlistack, [RadiusRow RadiusCol], 'symmetric');
@@ -208,9 +221,16 @@ function SHP = SHP_SelPoint_BWS_Serial(mlistack, CalWin, Alpha, nlines, nwidths,
             T = BWStest(repmat(Ref(:), [1, CalWin(1)*CalWin(2)]), ...
                         reshape(Matrix, [CalWin(1)*CalWin(2), npages])', Alpha);
             temp = reshape(~T, [CalWin(1), CalWin(2)]);
-            % 连通性分析
-            LL = bwlabel(temp);
-            SHP.PixelInd(:, num) = LL(:) == LL(InitRow, InitCol);
+            if ~temp(InitRow, InitCol)
+                temp(InitRow, InitCol) = true;
+            end
+            % 连通性分析（可选）
+            if Connection
+                LL = bwlabel(temp);
+                SHP.PixelInd(:, num) = LL(:) == LL(InitRow, InitCol);
+            else
+                SHP.PixelInd(:, num) = temp(:);
+            end
             num = num + 1;
             if num == all_step * p
                 disp(['progress: ', num2str(10*p), '%']);
@@ -223,13 +243,14 @@ function SHP = SHP_SelPoint_BWS_Serial(mlistack, CalWin, Alpha, nlines, nwidths,
     SHP.BroNum = sum(SHP.PixelInd, 1);
     SHP.BroNum = uint16(reshape(SHP.BroNum(:), [nlines, nwidths]));
     SHP.CalWin = CalWin;
+    SHP.Connection = logical(Connection);
 end
 
 %% ========================================================================
 %  BWS算法并行实现
 %  ========================================================================
 function SHP = SHP_SelPoint_BWS_Parallel(mlistack, CalWin, Alpha, nlines, nwidths, npages, ...
-                                          RadiusRow, RadiusCol, InitRow, InitCol, NumBlocks)
+                                          RadiusRow, RadiusCol, InitRow, InitCol, NumBlocks, Connection)
     
     % 确保并行池已启动
     pool = gcp('nocreate');
@@ -308,7 +329,7 @@ function SHP = SHP_SelPoint_BWS_Parallel(mlistack, CalWin, Alpha, nlines, nwidth
         % 处理当前分块
         blockResults{b} = processSingleBlock_BWS(currentBlock, CalWin, Alpha, npages, ...
                                                    RadiusRow, RadiusCol, InitRow, InitCol, ...
-                                                   currentBlockInfo, nwidths, b);
+                                                   currentBlockInfo, nwidths, b, Connection);
         
         fprintf('分块 %d/%d 处理完成\n', b, actualNumBlocks);
     end
@@ -354,6 +375,7 @@ function SHP = SHP_SelPoint_BWS_Parallel(mlistack, CalWin, Alpha, nlines, nwidth
     SHP.BroNum = sum(SHP.PixelInd, 1);
     SHP.BroNum = uint16(reshape(SHP.BroNum(:), [nlines, nwidths]));
     SHP.CalWin = CalWin;
+    SHP.Connection = logical(Connection);
 end
 
 %% ========================================================================
@@ -361,15 +383,15 @@ end
 %  ========================================================================
 function result = processSingleBlock_BWS(blockData, CalWin, Alpha, npages, ...
                                           RadiusRow, RadiusCol, InitRow, InitCol, ...
-                                          blockInfo, nwidths, blockIdx)
+                                          blockInfo, nwidths, blockIdx, Connection)
     
     % 获取分块尺寸
-    [blockLines, ~, ~] = size(blockData);
+    [~, ~, ~] = size(blockData);
     
     % 边缘镜像扩展（仅在列方向，行方向已经有足够的重叠）
     % 但为了保持算法一致性，仍然进行完整的扩展
     blockData = padarray(blockData, [RadiusRow RadiusCol], 'symmetric');
-    [nlines_EP, nwidths_EP, ~] = size(blockData);
+    [~, nwidths_EP, ~] = size(blockData);
     
     % 计算有效处理区域（在扩展后坐标系中）
     % 原始分块的第一行在扩展后位于 RadiusRow+1
@@ -398,10 +420,18 @@ function result = processSingleBlock_BWS(blockData, CalWin, Alpha, npages, ...
             T = BWStest(repmat(Ref(:), [1, CalWin(1)*CalWin(2)]), ...
                         reshape(Matrix, [CalWin(1)*CalWin(2), npages])', Alpha);
             temp = reshape(~T, [CalWin(1), CalWin(2)]);
-            
-            % 连通性分析
-            LL = bwlabel(temp);
-            result(:, pixelCount) = LL(:) == LL(InitRow, InitCol);
+
+            if ~temp(InitRow, InitCol)
+                temp(InitRow, InitCol) = true;
+            end
+
+            % 连通性分析（可选）
+            if Connection
+                LL = bwlabel(temp);
+                result(:, pixelCount) = LL(:) == LL(InitRow, InitCol);
+            else
+                result(:, pixelCount) = temp(:);
+            end
         end
     end
     
