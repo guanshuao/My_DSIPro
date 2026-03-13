@@ -1,4 +1,4 @@
-clc;close all;
+clc;close all;clear;
 
 % 以下为开始时的代码，速度较慢
 % datesDir = '/titan/guanshuao/Kumamoto/process/dates_resampled';
@@ -13,6 +13,66 @@ clc;close all;
 % [intfstack, ~] = readISCE2intStack(pairsDir, 'Subset', subset);
 % ImgWrite(intfstack.datastack,intfstack.filename,'/sar/guanshuao/Kumamoto/DIFF','int','cpxfloat32', 'b');
 % intfstack.datastack = intfstack.datastack ./ abs(intfstack.datastack);
+
+
+
+
+delete(gcp('nocreate'));
+NumWorkers=21;
+Biascorr='n';%make bias correction
+
+
+load('/sar/guanshuao/Kumamoto/Data/connection/SHP_BWS_23.mat');
+[AdpCoh_BWS_23] = AdpCohEst_New('/sar/guanshuao/Kumamoto/SLC', 'slc', 'cpxfloat32', 'b', '/sar/guanshuao/Kumamoto/DIFF', 'int', 'cpxfloat32','b', 25000, SHP_BWS_23, Biascorr, 'average', NumWorkers);
+figure('Visible','off'); imagesc(AdpCoh_BWS_23); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/connection/AdpCoh_BWS_23.png');
+save('/sar/guanshuao/Kumamoto/Data/connection/AdpCoh_BWS_23.mat', 'AdpCoh_BWS_23', '-v7.3');
+clear AdpCoh_BWS_23;clear SHP_BWS_23;
+
+load('/sar/guanshuao/Kumamoto/Data/connection/SHP_BWS_25.mat');
+[AdpCoh_BWS_25] = AdpCohEst_New('/sar/guanshuao/Kumamoto/SLC', 'slc', 'cpxfloat32', 'b', '/sar/guanshuao/Kumamoto/DIFF', 'int', 'cpxfloat32','b', 25000, SHP_BWS_25, Biascorr, 'average', NumWorkers);
+figure('Visible','off'); imagesc(AdpCoh_BWS_25); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/connection/AdpCoh_BWS_25.png');
+save('/sar/guanshuao/Kumamoto/Data/connection/AdpCoh_BWS_25.mat', 'AdpCoh_BWS_25', '-v7.3');
+clear AdpCoh_BWS_25;clear SHP_BWS_25;
+
+load('/sar/guanshuao/Kumamoto/Data/connection/SHP_BWS_27.mat');
+[AdpCoh_BWS_27] = AdpCohEst_New('/sar/guanshuao/Kumamoto/SLC', 'slc', 'cpxfloat32', 'b', '/sar/guanshuao/Kumamoto/DIFF', 'int', 'cpxfloat32','b', 25000, SHP_BWS_27, Biascorr, 'average', NumWorkers);
+figure('Visible','off'); imagesc(AdpCoh_BWS_27); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/connection/AdpCoh_BWS_27.png');
+save('/sar/guanshuao/Kumamoto/Data/connection/AdpCoh_BWS_27.mat', 'AdpCoh_BWS_27', '-v7.3');
+clear AdpCoh_BWS_27;clear SHP_BWS_27;
+
+load('/sar/guanshuao/Kumamoto/Data/connection/SHP_BWS_29.mat');
+[AdpCoh_BWS_29] = AdpCohEst_New('/sar/guanshuao/Kumamoto/SLC', 'slc', 'cpxfloat32', 'b', '/sar/guanshuao/Kumamoto/DIFF', 'int', 'cpxfloat32','b', 25000, SHP_BWS_29, Biascorr, 'average', NumWorkers);
+figure('Visible','off'); imagesc(AdpCoh_BWS_29); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/connection/AdpCoh_BWS_29.png');
+save('/sar/guanshuao/Kumamoto/Data/connection/AdpCoh_BWS_29.mat', 'AdpCoh_BWS_29', '-v7.3');
+clear AdpCoh_BWS_29;clear SHP_BWS_29;
+
+
+load('/sar/guanshuao/Kumamoto/Data/not_connection/SHP_BWS_23.mat');
+[AdpCoh_BWS_23] = AdpCohEst_New('/sar/guanshuao/Kumamoto/SLC', 'slc', 'cpxfloat32', 'b', '/sar/guanshuao/Kumamoto/DIFF', 'int', 'cpxfloat32','b', 25000, SHP_BWS_23, Biascorr, 'average', NumWorkers);
+figure('Visible','off'); imagesc(AdpCoh_BWS_23); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_23.png');
+save('/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_23.mat', 'AdpCoh_BWS_23', '-v7.3');
+clear AdpCoh_BWS_23;clear SHP_BWS_23;
+
+load('/sar/guanshuao/Kumamoto/Data/not_connection/SHP_BWS_25.mat');
+[AdpCoh_BWS_25] = AdpCohEst_New('/sar/guanshuao/Kumamoto/SLC', 'slc', 'cpxfloat32', 'b', '/sar/guanshuao/Kumamoto/DIFF', 'int', 'cpxfloat32','b', 25000, SHP_BWS_25, Biascorr, 'average', NumWorkers);
+figure('Visible','off'); imagesc(AdpCoh_BWS_25); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_25.png');
+save('/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_25.mat', 'AdpCoh_BWS_25', '-v7.3');
+clear AdpCoh_BWS_25;clear SHP_BWS_25;
+
+load('/sar/guanshuao/Kumamoto/Data/not_connection/SHP_BWS_27.mat');
+[AdpCoh_BWS_27] = AdpCohEst_New('/sar/guanshuao/Kumamoto/SLC', 'slc', 'cpxfloat32', 'b', '/sar/guanshuao/Kumamoto/DIFF', 'int', 'cpxfloat32','b', 25000, SHP_BWS_27, Biascorr, 'average', NumWorkers);
+figure('Visible','off'); imagesc(AdpCoh_BWS_27); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_27.png');
+save('/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_27.mat', 'AdpCoh_BWS_27', '-v7.3');
+clear AdpCoh_BWS_27;clear SHP_BWS_27;
+
+load('/sar/guanshuao/Kumamoto/Data/not_connection/SHP_BWS_29.mat');
+[AdpCoh_BWS_29] = AdpCohEst_New('/sar/guanshuao/Kumamoto/SLC', 'slc', 'cpxfloat32', 'b', '/sar/guanshuao/Kumamoto/DIFF', 'int', 'cpxfloat32','b', 25000, SHP_BWS_29, Biascorr, 'average', NumWorkers);
+figure('Visible','off'); imagesc(AdpCoh_BWS_29); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_29.png');
+save('/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_29.mat', 'AdpCoh_BWS_29', '-v7.3');
+clear AdpCoh_BWS_29;clear SHP_BWS_29;
+
+exit;
+
 
 
 if exist('powerstack', 'var')
@@ -32,92 +92,6 @@ else
     intfstack.datastack = intfstack.datastack ./ abs(intfstack.datastack);
     display('Interferogram stack reading completed');
 end
-
-
-
-delete(gcp('nocreate'));
-NumWorkers=25;
-Biascorr='n';%make bias correction
-
-
-
-
-
-load('/sar/guanshuao/Kumamoto/Data/connection/SHP_BWS_23.mat');
-[AdpCoh_BWS_23] = AdpCohEst(powerstack.datastack, powerstack.filename, intfstack.datastack, intfstack.filename, SHP_BWS_23, Biascorr, 'average', NumWorkers);
-figure('Visible','off'); imagesc(AdpCoh_BWS_23); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/connection/AdpCoh_BWS_23.png');
-save('/sar/guanshuao/Kumamoto/Data/connection/AdpCoh_BWS_23.mat', 'AdpCoh_BWS_23', '-v7.3');
-clear AdpCoh_BWS_23;clear SHP_BWS_23;
-
-load('/sar/guanshuao/Kumamoto/Data/connection/SHP_BWS_25.mat');
-[AdpCoh_BWS_25] = AdpCohEst(powerstack.datastack, powerstack.filename, intfstack.datastack, intfstack.filename, SHP_BWS_25, Biascorr, 'average', NumWorkers);
-figure('Visible','off'); imagesc(AdpCoh_BWS_25); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/connection/AdpCoh_BWS_25.png');
-save('/sar/guanshuao/Kumamoto/Data/connection/AdpCoh_BWS_25.mat', 'AdpCoh_BWS_25', '-v7.3');
-clear AdpCoh_BWS_25;clear SHP_BWS_25;
-
-load('/sar/guanshuao/Kumamoto/Data/connection/SHP_BWS_27.mat');
-[AdpCoh_BWS_27] = AdpCohEst(powerstack.datastack, powerstack.filename, intfstack.datastack, intfstack.filename, SHP_BWS_27, Biascorr, 'average', NumWorkers);
-figure('Visible','off'); imagesc(AdpCoh_BWS_27); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/connection/AdpCoh_BWS_27.png');
-save('/sar/guanshuao/Kumamoto/Data/connection/AdpCoh_BWS_27.mat', 'AdpCoh_BWS_27', '-v7.3');
-clear AdpCoh_BWS_27;clear SHP_BWS_27;
-
-load('/sar/guanshuao/Kumamoto/Data/connection/SHP_BWS_29.mat');
-[AdpCoh_BWS_29] = AdpCohEst(powerstack.datastack, powerstack.filename, intfstack.datastack, intfstack.filename, SHP_BWS_29, Biascorr, 'average', NumWorkers);
-figure('Visible','off'); imagesc(AdpCoh_BWS_29); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/connection/AdpCoh_BWS_29.png');
-save('/sar/guanshuao/Kumamoto/Data/connection/AdpCoh_BWS_29.mat', 'AdpCoh_BWS_29', '-v7.3');
-clear AdpCoh_BWS_29;clear SHP_BWS_29;
-
-
-
-load('/sar/guanshuao/Kumamoto/Data/not_connection/SHP_BWS_13.mat');
-[AdpCoh_BWS_13] = AdpCohEst(powerstack.datastack, powerstack.filename, intfstack.datastack, intfstack.filename, SHP_BWS_13, Biascorr, 'average', NumWorkers);
-figure('Visible','off'); imagesc(AdpCoh_BWS_13); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_13.png');
-save('/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_13.mat', 'AdpCoh_BWS_13', '-v7.3');
-clear AdpCoh_BWS_13;clear SHP_BWS_13;
-
-
-
-load('/sar/guanshuao/Kumamoto/Data/not_connection/SHP_BWS_17.mat');
-[AdpCoh_BWS_17] = AdpCohEst(powerstack.datastack, powerstack.filename, intfstack.datastack, intfstack.filename, SHP_BWS_17, Biascorr, 'average', NumWorkers);
-figure('Visible','off'); imagesc(AdpCoh_BWS_17); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_17.png');
-save('/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_17.mat', 'AdpCoh_BWS_17', '-v7.3');
-clear AdpCoh_BWS_17;clear SHP_BWS_17;
-
-load('/sar/guanshuao/Kumamoto/Data/not_connection/SHP_BWS_19.mat');
-[AdpCoh_BWS_19] = AdpCohEst(powerstack.datastack, powerstack.filename, intfstack.datastack, intfstack.filename, SHP_BWS_19, Biascorr, 'average', NumWorkers);
-figure('Visible','off'); imagesc(AdpCoh_BWS_19); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_19.png');
-save('/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_19.mat', 'AdpCoh_BWS_19', '-v7.3');
-clear AdpCoh_BWS_19;clear SHP_BWS_19;
-
-load('/sar/guanshuao/Kumamoto/Data/not_connection/SHP_BWS_21.mat');
-[AdpCoh_BWS_21] = AdpCohEst(powerstack.datastack, powerstack.filename, intfstack.datastack, intfstack.filename, SHP_BWS_21, Biascorr, 'average', NumWorkers);
-figure('Visible','off'); imagesc(AdpCoh_BWS_21); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_21.png');
-save('/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_21.mat', 'AdpCoh_BWS_21', '-v7.3');
-clear AdpCoh_BWS_21;clear SHP_BWS_21;
-
-load('/sar/guanshuao/Kumamoto/Data/not_connection/SHP_BWS_23.mat');
-[AdpCoh_BWS_23] = AdpCohEst(powerstack.datastack, powerstack.filename, intfstack.datastack, intfstack.filename, SHP_BWS_23, Biascorr, 'average', NumWorkers);
-figure('Visible','off'); imagesc(AdpCoh_BWS_23); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_23.png');
-save('/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_23.mat', 'AdpCoh_BWS_23', '-v7.3');
-clear AdpCoh_BWS_23;clear SHP_BWS_23;
-
-load('/sar/guanshuao/Kumamoto/Data/not_connection/SHP_BWS_25.mat');
-[AdpCoh_BWS_25] = AdpCohEst(powerstack.datastack, powerstack.filename, intfstack.datastack, intfstack.filename, SHP_BWS_25, Biascorr, 'average', NumWorkers);
-figure('Visible','off'); imagesc(AdpCoh_BWS_25); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_25.png');
-save('/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_25.mat', 'AdpCoh_BWS_25', '-v7.3');
-clear AdpCoh_BWS_25;clear SHP_BWS_25;
-
-load('/sar/guanshuao/Kumamoto/Data/not_connection/SHP_BWS_27.mat');
-[AdpCoh_BWS_27] = AdpCohEst(powerstack.datastack, powerstack.filename, intfstack.datastack, intfstack.filename, SHP_BWS_27, Biascorr, 'average', NumWorkers);
-figure('Visible','off'); imagesc(AdpCoh_BWS_27); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_27.png');
-save('/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_27.mat', 'AdpCoh_BWS_27', '-v7.3');
-clear AdpCoh_BWS_27;clear SHP_BWS_27;
-
-load('/sar/guanshuao/Kumamoto/Data/not_connection/SHP_BWS_29.mat');
-[AdpCoh_BWS_29] = AdpCohEst(powerstack.datastack, powerstack.filename, intfstack.datastack, intfstack.filename, SHP_BWS_29, Biascorr, 'average', NumWorkers);
-figure('Visible','off'); imagesc(AdpCoh_BWS_29); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_29.png');
-save('/sar/guanshuao/Kumamoto/Data/not_connection/AdpCoh_BWS_29.mat', 'AdpCoh_BWS_29', '-v7.3');
-clear AdpCoh_BWS_29;clear SHP_BWS_29;
 
 % Boxcar coherence estimation 
 [BoxCoh_3] = BoxCohEst(powerstack.datastack,powerstack.filename,intfstack.datastack,intfstack.filename,[3 3], 'average');

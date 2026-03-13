@@ -1,57 +1,73 @@
-clc;close all;
+clc;close all;clear;
 
-% curpath   = pwd;
-mlipath   = ['/titan/guanshuao/Beijing_Sentinel',filesep,'ML',filesep,'MLI'];
-diffpath  = ['/titan/guanshuao/Beijing_Sentinel',filesep,'ML',filesep,'DIFF'];
+slcstack = ImgRead('/sar/guanshuao/Beijing_Sentinel/SL/SLC','slc',6400,'cpxfloat32', 'b');
+powerstack = slcstack; 
+powerstack.datastack = abs(slcstack.datastack).^2;
+clear slcstack;
 
-%read parameter file
-tag_files = dir([mlipath,filesep, '*.par']);
-fname     = [mlipath,filesep,tag_files(1).name]; 
-nlines    = readparam('azimuth_lines',fname); 
-
-if exist('mlistack', 'var')
-    disp('mlistack变量已存在，跳过SLC堆栈读取步骤');
-else
-    disp('正在读取SLC堆栈...');
-    slcstack = ImgRead(mlipath,'slc',nlines,'cpxfloat32');
-    [~,~,num_slcstack] = size(slcstack.datastack);
-    for i = 1:num_slcstack
-        slcstack.datastack(:,:,i) = flip(slcstack.datastack(:,:,i));
-    end
-    mlistack = slcstack; 
-    mlistack.datastack = abs(slcstack.datastack).^2;
-    clear slcstack;
-    disp('SLC堆栈读取完成');
-end
-
-Alpha=0.05;
-EstAgr='BWS'; 
-NumWorkers=40;
-c = parcluster('local');
-c.NumWorkers = NumWorkers;        
-parpool(c, NumWorkers);      
 
 CalWin = [21 21];
-[SHP_BWS_21]=SHP_SelPoint(mlistack.datastack, CalWin, Alpha, EstAgr, NumWorkers);
-save('/titan/guanshuao/Beijing_Sentinel/ML/SHP_BWS_21.mat', 'SHP_BWS_21', '-v7.3');
+Alpha=0.05;
+EstAgr='BWS'; 
+NumWorkers=48; 
+
+[SHP_BWS_21]=SHP_SelPoint(powerstack.datastack, CalWin, Alpha, EstAgr, NumWorkers, false);
+save('/sar/guanshuao/Beijing_Sentinel/SL/not_connection/SHP_BWS_21.mat', 'SHP_BWS_21', '-v7.3');
+figure('Visible','off'); imagesc(SHP_BWS_21.BroNum); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Beijing_Sentinel/SL/not_connection/SHP_BWS_21.png'); 
 delete(gcp('nocreate'));
 
 SHP_BWS_19 = SHP_Resize(SHP_BWS_21, [19 19]);
-save('/titan/guanshuao/Beijing_Sentinel/ML/SHP_BWS_19.mat', 'SHP_BWS_19', '-v7.3');
+save('/sar/guanshuao/Beijing_Sentinel/SL/not_connection/SHP_BWS_19.mat', 'SHP_BWS_19', '-v7.3');
+figure('Visible','off'); imagesc(SHP_BWS_19.BroNum); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Beijing_Sentinel/SL/not_connection/SHP_BWS_19.png');
+clear SHP_BWS_21;
+
+SHP_BWS_17 = SHP_Resize(SHP_BWS_19, [17 17]);
+save('/sar/guanshuao/Beijing_Sentinel/SL/not_connection/SHP_BWS_17.mat', 'SHP_BWS_17', '-v7.3');
+figure('Visible','off'); imagesc(SHP_BWS_17.BroNum); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Beijing_Sentinel/SL/not_connection/SHP_BWS_17.png');
 clear SHP_BWS_19;
 
-SHP_BWS_17 = SHP_Resize(SHP_BWS_21, [17 17]);
-save('/titan/guanshuao/Beijing_Sentinel/ML/SHP_BWS_17.mat', 'SHP_BWS_17', '-v7.3');
+SHP_BWS_15 = SHP_Resize(SHP_BWS_17, [15 15]);
+save('/sar/guanshuao/Beijing_Sentinel/SL/not_connection/SHP_BWS_15.mat', 'SHP_BWS_15', '-v7.3');
+figure('Visible','off'); imagesc(SHP_BWS_15.BroNum); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Beijing_Sentinel/SL/not_connection/SHP_BWS_15.png');
 clear SHP_BWS_17;
 
-SHP_BWS_15 = SHP_Resize(SHP_BWS_21, [15 15]);
-save('/titan/guanshuao/Beijing_Sentinel/ML/SHP_BWS_15.mat', 'SHP_BWS_15', '-v7.3');
+SHP_BWS_13 = SHP_Resize(SHP_BWS_15, [13 13]);
+save('/sar/guanshuao/Beijing_Sentinel/SL/not_connection/SHP_BWS_13.mat', 'SHP_BWS_13', '-v7.3');
+figure('Visible','off'); imagesc(SHP_BWS_13.BroNum); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Beijing_Sentinel/SL/not_connection/SHP_BWS_13.png');
 clear SHP_BWS_15;
 
-SHP_BWS_13 = SHP_Resize(SHP_BWS_21, [13 13]);
-save('/titan/guanshuao/Beijing_Sentinel/ML/SHP_BWS_13.mat', 'SHP_BWS_13', '-v7.3');
-clear SHP_BWS_13;
+SHP_BWS_11 = SHP_Resize(SHP_BWS_13, [11 11]);
+save('/sar/guanshuao/Beijing_Sentinel/SL/not_connection/SHP_BWS_11.mat', 'SHP_BWS_11', '-v7.3');
+figure('Visible','off'); imagesc(SHP_BWS_11.BroNum); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Beijing_Sentinel/SL/not_connection/SHP_BWS_11.png');
+clear SHP_BWS_13 SHP_BWS_11;
 
-SHP_BWS_11 = SHP_Resize(SHP_BWS_21, [11 11]);
-save('/titan/guanshuao/Beijing_Sentinel/ML/SHP_BWS_11.mat', 'SHP_BWS_11', '-v7.3');
-clear SHP_BWS_11;
+
+[SHP_BWS_21]=SHP_SelPoint(powerstack.datastack, CalWin, Alpha, EstAgr, NumWorkers, true);
+save('/sar/guanshuao/Beijing_Sentinel/SL/connection/SHP_BWS_21.mat', 'SHP_BWS_21', '-v7.3');
+figure('Visible','off'); imagesc(SHP_BWS_21.BroNum); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Beijing_Sentinel/SL/connection/SHP_BWS_21.png'); 
+delete(gcp('nocreate'));
+
+SHP_BWS_19 = SHP_Resize(SHP_BWS_21, [19 19]);
+save('/sar/guanshuao/Beijing_Sentinel/SL/connection/SHP_BWS_19.mat', 'SHP_BWS_19', '-v7.3');
+figure('Visible','off'); imagesc(SHP_BWS_19.BroNum); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Beijing_Sentinel/SL/connection/SHP_BWS_19.png');
+clear SHP_BWS_21;
+
+SHP_BWS_17 = SHP_Resize(SHP_BWS_19, [17 17]);
+save('/sar/guanshuao/Beijing_Sentinel/SL/connection/SHP_BWS_17.mat', 'SHP_BWS_17', '-v7.3');
+figure('Visible','off'); imagesc(SHP_BWS_17.BroNum); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Beijing_Sentinel/SL/connection/SHP_BWS_17.png');
+clear SHP_BWS_19;
+
+SHP_BWS_15 = SHP_Resize(SHP_BWS_17, [15 15]);
+save('/sar/guanshuao/Beijing_Sentinel/SL/connection/SHP_BWS_15.mat', 'SHP_BWS_15', '-v7.3');
+figure('Visible','off'); imagesc(SHP_BWS_15.BroNum); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Beijing_Sentinel/SL/connection/SHP_BWS_15.png');
+clear SHP_BWS_17;
+
+SHP_BWS_13 = SHP_Resize(SHP_BWS_15, [13 13]);
+save('/sar/guanshuao/Beijing_Sentinel/SL/connection/SHP_BWS_13.mat', 'SHP_BWS_13', '-v7.3');
+figure('Visible','off'); imagesc(SHP_BWS_13.BroNum); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Beijing_Sentinel/SL/connection/SHP_BWS_13.png');
+clear SHP_BWS_15;
+
+SHP_BWS_11 = SHP_Resize(SHP_BWS_13, [11 11]);
+save('/sar/guanshuao/Beijing_Sentinel/SL/connection/SHP_BWS_11.mat', 'SHP_BWS_11', '-v7.3');
+figure('Visible','off'); imagesc(SHP_BWS_11.BroNum); colorbar; axis image; saveas(gcf,'/sar/guanshuao/Beijing_Sentinel/SL/connection/SHP_BWS_11.png');
+clear SHP_BWS_13 SHP_BWS_11;

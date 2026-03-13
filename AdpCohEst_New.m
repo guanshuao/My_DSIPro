@@ -154,10 +154,10 @@ fprintf('图像尺寸: %d x %d\n', nline, nwidths);
 if NumWorkers > 1
     pool = gcp('nocreate');
     if isempty(pool)
-        parpool(NumWorkers);
+        parpool('local', NumWorkers);
     elseif pool.NumWorkers ~= NumWorkers
         delete(pool);
-        parpool(NumWorkers);
+        parpool('local', NumWorkers);
     end
 end
 
