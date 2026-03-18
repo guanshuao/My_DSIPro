@@ -24,118 +24,119 @@ end
 Calwin = Stack.Calwin;
 PixelNum = Calwin(1) * Calwin(2);  % 计算窗口内像素总数
 
-%% 图一：横轴为CV，纵轴比较各种估计方法的均值，包括BoxCoh_11、AdpCph、ModifiedCoh、TrueCoh
-% CV是连续变量，使用滑动窗口方法计算均值
+%% 图一：横轴为CV等样本量分级（level1-level100），纵轴比较各种估计方法的均值
+% 将CV从低到高排序，按等样本量划分为100个level，每个level内样本数相同
 
-% 定义CV的采样点和窗口
+num_levels = 100;  % 分级数量
+
+% 获取有效CV值及其线性索引
 cv_all = Stack.CV(:);
-cv_all = cv_all(~isnan(cv_all));
-cv_min = min(cv_all);
-cv_max = max(cv_all);
-cv_sample_points = linspace(cv_min, cv_max, 100);  % 100个采样点
-cv_window_size = (cv_max - cv_min) / 50;  % 窗口宽度
+valid_mask = ~isnan(cv_all);
+valid_indices = find(valid_mask);  % 有效像元的线性索引
+cv_valid = cv_all(valid_mask);
+
+% 按CV从低到高排序，获取排序后的索引
+[~, sort_order] = sort(cv_valid);
+sorted_indices = valid_indices(sort_order);  % 排序后像元的线性索引
+
+% 将排序后的像元等分为num_levels组
+num_valid = length(sorted_indices);
+group_size = floor(num_valid / num_levels);
+level_labels = 1:num_levels;
 
 % 初始化存储数组
-mean_TrueCoh_cv = zeros(size(cv_sample_points));
-mean_BoxCoh11_cv = zeros(size(cv_sample_points));
-mean_AdpCoh_cv = zeros(size(cv_sample_points));
-mean_ModifiedCoh_cv = zeros(size(cv_sample_points));
-mean_BestEst_cv = zeros(size(cv_sample_points));
+mean_TrueCoh_lv = zeros(1, num_levels);
+mean_BoxCoh11_lv = zeros(1, num_levels);
+mean_AdpCoh_lv = zeros(1, num_levels);
+mean_ModifiedCoh_lv = zeros(1, num_levels);
+mean_BestEst_lv = zeros(1, num_levels);
 
-% 对每个CV采样点计算均值
-for i = 1:length(cv_sample_points)
-    cv_val = cv_sample_points(i);
-    % 找到CV在当前窗口内的所有位置
-    idx = (Stack.CV >= cv_val - cv_window_size/2) & ...
-          (Stack.CV <= cv_val + cv_window_size/2);
-    
-    if sum(idx(:)) > 0  % 如果存在该窗口内的点
-        mean_TrueCoh_cv(i) = mean(Stack.TrueCoh(idx), 'omitnan');
-        mean_BoxCoh11_cv(i) = mean(Stack.BoxCoh_11(idx), 'omitnan');
-        mean_AdpCoh_cv(i) = mean(Stack.AdpCoh(idx), 'omitnan');
-        mean_ModifiedCoh_cv(i) = mean(Stack.ModifiedCoh(idx), 'omitnan');
-        mean_BestEst_cv(i) = mean(Stack.Best_Est(idx), 'omitnan');
+% 对每个level计算均值
+for i = 1:num_levels
+    if i < num_levels
+        idx = sorted_indices((i-1)*group_size+1 : i*group_size);
     else
-        mean_TrueCoh_cv(i) = NaN;
-        mean_BoxCoh11_cv(i) = NaN;
-        mean_AdpCoh_cv(i) = NaN;
-        mean_ModifiedCoh_cv(i) = NaN;
-        mean_BestEst_cv(i) = NaN;
+        idx = sorted_indices((i-1)*group_size+1 : end);  % 最后一组包含剩余像元
     end
+    
+    mean_TrueCoh_lv(i) = mean(Stack.TrueCoh(idx), 'omitnan');
+    mean_BoxCoh11_lv(i) = mean(Stack.BoxCoh_11(idx), 'omitnan');
+    mean_AdpCoh_lv(i) = mean(Stack.AdpCoh(idx), 'omitnan');
+    mean_ModifiedCoh_lv(i) = mean(Stack.ModifiedCoh(idx), 'omitnan');
+    mean_BestEst_lv(i) = mean(Stack.Best_Est(idx), 'omitnan');
 end
 
 % 绘制对比图
 figure;
-plot(cv_sample_points, mean_TrueCoh_cv, 'k-', 'LineWidth', 2, 'DisplayName', 'TrueCoh'); hold on;
-plot(cv_sample_points, mean_BoxCoh11_cv, 'b-', 'LineWidth', 1.5, 'DisplayName', 'BoxCoh\_11');
-plot(cv_sample_points, mean_AdpCoh_cv, 'r-', 'LineWidth', 1.5, 'DisplayName', 'AdpCoh');
-plot(cv_sample_points, mean_ModifiedCoh_cv, 'g-', 'LineWidth', 1.5, 'DisplayName', 'ModifiedCoh');
-plot(cv_sample_points, mean_BestEst_cv, 'm-', 'LineWidth', 1.5, 'DisplayName', 'Best\_Est');
+plot(level_labels, mean_TrueCoh_lv, 'k-', 'LineWidth', 2, 'DisplayName', 'TrueCoh'); hold on;
+plot(level_labels, mean_BoxCoh11_lv, 'b-', 'LineWidth', 1.5, 'DisplayName', 'BoxCoh\_11');
+plot(level_labels, mean_AdpCoh_lv, 'r-', 'LineWidth', 1.5, 'DisplayName', 'AdpCoh');
+plot(level_labels, mean_ModifiedCoh_lv, 'g-', 'LineWidth', 1.5, 'DisplayName', 'ModifiedCoh');
+plot(level_labels, mean_BestEst_lv, 'm-', 'LineWidth', 1.5, 'DisplayName', 'Best\_Est');
 hold off;
 
-xlabel('CV (变异系数)');
+xlabel('CV Level (低 \rightarrow 高)');
 ylabel('相干性均值');
+xlim([1 num_levels]);
 ylim([0 1]);
-title('不同CV下各估计方法的相干性均值对比');
+title('不同CV等级下各估计方法的相干性均值对比');
 legend('Location', 'best');
 grid on;
 
-%% 图二：横轴为CV，纵轴比较各种估计方法之比。1: Box/Adp, 2: Box/Mod, 3: Adp/Mod
-% 初始化存储比值的数组
-ratio_BoxAdp_cv = zeros(size(cv_sample_points));      % BoxCoh_11 / AdpCoh
-ratio_BoxMod_cv = zeros(size(cv_sample_points));      % BoxCoh_11 / ModifiedCoh
-ratio_AdpMod_cv = zeros(size(cv_sample_points));      % AdpCoh / ModifiedCoh
+%% 图二：横轴为CV等样本量分级（level1-level100），纵轴比较各种估计方法之比
+% 复用图一中已计算的level分组
 
-% 对每个CV采样点计算比值
-for i = 1:length(cv_sample_points)
-    cv_val = cv_sample_points(i);
-    % 找到CV在当前窗口内的所有位置
-    idx = (Stack.CV >= cv_val - cv_window_size/2) & ...
-          (Stack.CV <= cv_val + cv_window_size/2);
-    
-    if sum(idx(:)) > 0  % 如果存在该窗口内的点
-        % 计算均值
-        mean_box = mean(Stack.BoxCoh_11(idx), 'omitnan');
-        mean_adp = mean(Stack.AdpCoh(idx), 'omitnan');
-        mean_mod = mean(Stack.ModifiedCoh(idx), 'omitnan');
-        
-        % 计算比值（避免除以0）
-        if mean_adp > 0
-            ratio_BoxAdp_cv(i) = mean_box / mean_adp;
-        else
-            ratio_BoxAdp_cv(i) = NaN;
-        end
-        
-        if mean_mod > 0
-            ratio_BoxMod_cv(i) = mean_box / mean_mod;
-        else
-            ratio_BoxMod_cv(i) = NaN;
-        end
-        
-        if mean_mod > 0
-            ratio_AdpMod_cv(i) = mean_adp / mean_mod;
-        else
-            ratio_AdpMod_cv(i) = NaN;
-        end
+% 初始化存储比值的数组
+ratio_BoxAdp_lv = zeros(1, num_levels);      % BoxCoh_11 / AdpCoh
+ratio_BoxMod_lv = zeros(1, num_levels);      % BoxCoh_11 / ModifiedCoh
+ratio_AdpMod_lv = zeros(1, num_levels);      % AdpCoh / ModifiedCoh
+
+% 对每个level计算比值
+for i = 1:num_levels
+    if i < num_levels
+        idx = sorted_indices((i-1)*group_size+1 : i*group_size);
     else
-        ratio_BoxAdp_cv(i) = NaN;
-        ratio_BoxMod_cv(i) = NaN;
-        ratio_AdpMod_cv(i) = NaN;
+        idx = sorted_indices((i-1)*group_size+1 : end);
+    end
+    
+    % 计算均值
+    mean_box = mean(Stack.BoxCoh_11(idx), 'omitnan');
+    mean_adp = mean(Stack.AdpCoh(idx), 'omitnan');
+    mean_mod = mean(Stack.ModifiedCoh(idx), 'omitnan');
+    
+    % 计算比值（避免除以0）
+    if mean_adp > 0
+        ratio_BoxAdp_lv(i) = mean_box / mean_adp;
+    else
+        ratio_BoxAdp_lv(i) = NaN;
+    end
+    
+    if mean_mod > 0
+        ratio_BoxMod_lv(i) = mean_box / mean_mod;
+    else
+        ratio_BoxMod_lv(i) = NaN;
+    end
+    
+    if mean_mod > 0
+        ratio_AdpMod_lv(i) = mean_adp / mean_mod;
+    else
+        ratio_AdpMod_lv(i) = NaN;
     end
 end
 
 % 绘制比值对比图
 figure;
-plot(cv_sample_points, ones(size(cv_sample_points)), 'k--', 'LineWidth', 1, 'DisplayName', '参考线 (y=1)'); hold on;
-plot(cv_sample_points, ratio_BoxAdp_cv, 'b-', 'LineWidth', 1.5, 'DisplayName', 'BoxCoh\_11 / AdpCoh');
-plot(cv_sample_points, ratio_BoxMod_cv, 'r-', 'LineWidth', 1.5, 'DisplayName', 'BoxCoh\_11 / ModifiedCoh');
-plot(cv_sample_points, ratio_AdpMod_cv, 'g-', 'LineWidth', 1.5, 'DisplayName', 'AdpCoh / ModifiedCoh');
+plot(level_labels, ones(1, num_levels), 'k--', 'LineWidth', 1, 'DisplayName', '参考线 (y=1)'); hold on;
+plot(level_labels, ratio_BoxAdp_lv, 'b-', 'LineWidth', 1.5, 'DisplayName', 'BoxCoh\_11 / AdpCoh');
+plot(level_labels, ratio_BoxMod_lv, 'r-', 'LineWidth', 1.5, 'DisplayName', 'BoxCoh\_11 / ModifiedCoh');
+plot(level_labels, ratio_AdpMod_lv, 'g-', 'LineWidth', 1.5, 'DisplayName', 'AdpCoh / ModifiedCoh');
 hold off;
 
-xlabel('CV (变异系数)');
+xlabel('CV Level (低 \rightarrow 高)');
 ylabel('相干性估计比值');
+xlim([1 num_levels]);
 ylim([0 4]);
-title('不同CV下各估计方法之间的比值对比');
+title('不同CV等级下各估计方法之间的比值对比');
 legend('Location', 'best');
 grid on;
 
@@ -253,40 +254,56 @@ hold off;
 
 %% 图四：SHPNum与CV的联合分布及其对估计误差的影响（二维热力图）
 % 设计思路：
-%   - 横轴：SHPNum（统计同质性像素数）
-%   - 纵轴：CV（变异系数）
+%   - 横轴：SHPNum等样本量分级（121个level）
+%   - 纵轴：CV等样本量分级（100个level）
 %   - 颜色：|BoxCoh_11 - TrueCoh|（估计误差绝对值）
+%   - 共 100 x 121 = 12100 个格子
 
 figure;
 
-% 定义SHPNum和CV的分箱数
-num_shp_bins = 30;  % SHPNum的分箱数
-num_cv_bins = 30;   % CV的分箱数
+% 定义分箱数
+num_shp_bins = 121;  % SHPNum的分级数
+num_cv_bins = 100;   % CV的分级数
 
-% 获取SHPNum的范围
+% --- CV: 按分位数划分为等样本量的100个区间 ---
+cv_percentiles = linspace(0, 100, num_cv_bins + 1);
+cv_edges_heatmap = prctile(cv_valid, cv_percentiles);
+% 修正可能存在的重复边界（当大量像元CV值相同时）
+cv_edges_heatmap = unique(cv_edges_heatmap);
+num_cv_bins_actual = length(cv_edges_heatmap) - 1;
+
+% --- SHPNum: 按分位数划分为等样本量的121个区间 ---
 shp_all = Stack.SHPNum(:);
-shp_all = shp_all(~isnan(shp_all));
-shp_min = double(min(shp_all));
-shp_max = double(max(shp_all));
+shp_valid_mask = ~isnan(shp_all);
+shp_valid = double(shp_all(shp_valid_mask));
+shp_percentiles = linspace(0, 100, num_shp_bins + 1);
+shp_edges = prctile(shp_valid, shp_percentiles);
+shp_edges = unique(shp_edges);
+num_shp_bins_actual = length(shp_edges) - 1;
 
-% 创建分箱边界
-shp_edges = linspace(shp_min, shp_max, num_shp_bins + 1);
-cv_edges_heatmap = linspace(cv_min, cv_max, num_cv_bins + 1);
-
-% 计算每个bin的中心点
-shp_centers = (shp_edges(1:end-1) + shp_edges(2:end)) / 2;
-cv_centers = (cv_edges_heatmap(1:end-1) + cv_edges_heatmap(2:end)) / 2;
+% 使用level序号作为坐标轴
+shp_levels = 1:num_shp_bins_actual;
+cv_levels = 1:num_cv_bins_actual;
 
 % 初始化热力图矩阵（存储每个bin的平均误差）
-error_matrix = NaN(num_cv_bins, num_shp_bins);
-count_matrix = zeros(num_cv_bins, num_shp_bins);
+error_matrix = NaN(num_cv_bins_actual, num_shp_bins_actual);
+count_matrix = zeros(num_cv_bins_actual, num_shp_bins_actual);
 
 % 计算每个bin的平均估计误差
-for i = 1:num_shp_bins
-    for j = 1:num_cv_bins
+parfor i = 1:num_shp_bins_actual
+    for j = 1:num_cv_bins_actual
         % 找到同时满足SHPNum和CV条件的位置
-        idx = (Stack.SHPNum >= shp_edges(i)) & (Stack.SHPNum < shp_edges(i+1)) & ...
-              (Stack.CV >= cv_edges_heatmap(j)) & (Stack.CV < cv_edges_heatmap(j+1));
+        if i < num_shp_bins_actual
+            shp_cond = (Stack.SHPNum >= shp_edges(i)) & (Stack.SHPNum < shp_edges(i+1));
+        else
+            shp_cond = (Stack.SHPNum >= shp_edges(i)) & (Stack.SHPNum <= shp_edges(i+1));
+        end
+        if j < num_cv_bins_actual
+            cv_cond = (Stack.CV >= cv_edges_heatmap(j)) & (Stack.CV < cv_edges_heatmap(j+1));
+        else
+            cv_cond = (Stack.CV >= cv_edges_heatmap(j)) & (Stack.CV <= cv_edges_heatmap(j+1));
+        end
+        idx = shp_cond & cv_cond;
         
         count = sum(idx(:));
         count_matrix(j, i) = count;
@@ -299,7 +316,7 @@ for i = 1:num_shp_bins
 end
 
 % 绘制热力图
-imagesc(shp_centers, cv_centers, error_matrix);
+imagesc(shp_levels, cv_levels, error_matrix);
 set(gca, 'YDir', 'normal');  % 使Y轴从下到上递增
 colormap(jet);
 c = colorbar;
@@ -307,16 +324,16 @@ c.Label.String = '|BoxCoh_{11} - TrueCoh|';
 c.Label.FontSize = 11;
 
 % 设置坐标轴
-xlabel('SHPNum (统计同质性像素数)');
-ylabel('CV (变异系数)');
-title('SHPNum与CV联合分布下的BoxCoh估计误差绝对值热力图');
+xlabel('SHPNum Level (低 \rightarrow 高)');
+ylabel('CV Level (低 \rightarrow 高)');
+title('SHPNum与CV等样本量分级下的BoxCoh估计误差绝对值热力图');
 grid off;
 
 % 添加等值线以增强可读性
 hold on;
-[X, Y] = meshgrid(shp_centers, cv_centers);
+[X, Y] = meshgrid(shp_levels, cv_levels);
 % 只在有足够数据的区域绘制等值线
-valid_mask = count_matrix >= 5;  % 至少5个样本点
+valid_mask = count_matrix >= 10;  % 至少3个样本点
 error_matrix_contour = error_matrix;
 error_matrix_contour(~valid_mask) = NaN;
 contour(X, Y, error_matrix_contour, 8, 'k', 'LineWidth', 0.5);
@@ -324,26 +341,34 @@ hold off;
 
 %% 图五：SHPNum与CV的联合分布下的最佳窗口大小热力图
 % 设计思路：
-%   - 横轴：SHPNum（统计同质性像素数）
-%   - 纵轴：CV（变异系数）
+%   - 横轴：SHPNum等样本量分级（121个level）
+%   - 纵轴：CV等样本量分级（100个level）
 %   - 颜色：Best_Win（最佳窗口大小）
+%   - 共 100 x 121 = 12100 个格子
 
 figure;
 
-% 使用与图四相同的分箱设置
-% num_shp_bins = 30;  % 已在图四中定义
-% num_cv_bins = 30;   % 已在图四中定义
+% 复用图四中已计算的等样本量分箱边界
 
 % 初始化热力图矩阵（存储每个bin的最佳窗口平均值）
-best_win_matrix = NaN(num_cv_bins, num_shp_bins);
-count_matrix_win = zeros(num_cv_bins, num_shp_bins);
+best_win_matrix = NaN(num_cv_bins_actual, num_shp_bins_actual);
+count_matrix_win = zeros(num_cv_bins_actual, num_shp_bins_actual);
 
 % 计算每个bin内最佳窗口大小的平均值
-for i = 1:num_shp_bins
-    for j = 1:num_cv_bins
+parfor i = 1:num_shp_bins_actual
+    for j = 1:num_cv_bins_actual
         % 找到同时满足SHPNum和CV条件的位置
-        idx = (Stack.SHPNum >= shp_edges(i)) & (Stack.SHPNum < shp_edges(i+1)) & ...
-              (Stack.CV >= cv_edges_heatmap(j)) & (Stack.CV < cv_edges_heatmap(j+1));
+        if i < num_shp_bins_actual
+            shp_cond = (Stack.SHPNum >= shp_edges(i)) & (Stack.SHPNum < shp_edges(i+1));
+        else
+            shp_cond = (Stack.SHPNum >= shp_edges(i)) & (Stack.SHPNum <= shp_edges(i+1));
+        end
+        if j < num_cv_bins_actual
+            cv_cond = (Stack.CV >= cv_edges_heatmap(j)) & (Stack.CV < cv_edges_heatmap(j+1));
+        else
+            cv_cond = (Stack.CV >= cv_edges_heatmap(j)) & (Stack.CV <= cv_edges_heatmap(j+1));
+        end
+        idx = shp_cond & cv_cond;
         
         count = sum(idx(:));
         count_matrix_win(j, i) = count;
@@ -362,7 +387,7 @@ for i = 1:num_shp_bins
 end
 
 % 绘制热力图
-imagesc(shp_centers, cv_centers, best_win_matrix);
+imagesc(shp_levels, cv_levels, best_win_matrix);
 set(gca, 'YDir', 'normal');  % 使Y轴从下到上递增
 
 % 使用连续颜色映射（因为平均值是连续值）
@@ -374,17 +399,18 @@ c.Label.String = '最佳窗口大小平均值 (Best\_Win)';
 c.Label.FontSize = 11;
 
 % 设置坐标轴
-xlabel('SHPNum (统计同质性像素数)');
-ylabel('CV (变异系数)');
-title('SHPNum与CV联合分布下的最佳窗口大小平均值热力图');
+xlabel('SHPNum Level (低 \rightarrow 高)');
+ylabel('CV Level (低 \rightarrow 高)');
+title('SHPNum与CV等样本量分级下的最佳窗口大小平均值热力图');
 grid off;
 
 % 添加等值线以增强可读性
 hold on;
+[X5, Y5] = meshgrid(shp_levels, cv_levels);
 % 只在有足够数据的区域绘制等值线
-valid_mask_win = count_matrix_win >= 5;  % 至少5个样本点
+valid_mask_win = count_matrix_win >= 10;  % 至少3个样本点
 best_win_contour = best_win_matrix;
 best_win_contour(~valid_mask_win) = NaN;
-contour(X, Y, best_win_contour, 8, 'k', 'LineWidth', 0.5);
+contour(X5, Y5, best_win_contour, 8, 'k', 'LineWidth', 0.5);
 hold off;
 

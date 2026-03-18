@@ -48,4 +48,6 @@ function CV_map = CVEst(img, calwin)
     CV_map = std_img ./ mean_img;
     CV_map(mean_img == 0) = 0;      % 避免除以 0
     CV_map(N_count == 0) = NaN;     % 窗口内全为NaN时，结果为NaN
+
+    CV_map = single(CV_map); % 转换为单精度，节省内存
 end

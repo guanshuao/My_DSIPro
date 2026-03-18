@@ -1,7 +1,8 @@
 %% 将Stack.mat文件中的数据可视化
-clc;clear;close all;
+clc;clear;
 
 % 检查Stack变量是否存在，否则尝试从 .mat 文件加载
+%% 
 if ~exist('Stack', 'var')
     if exist('Stack.mat', 'file')
         disp('Loading Stack.mat...');
@@ -357,7 +358,11 @@ legend(legend_handles, {'TrueCoh', 'BoxCoh\_11', 'AdpCoh', 'ModifiedCoh', 'Best\
 
 hold off;
 
-%% 图四：横轴为SHPNum，纵轴为CV的均值（改进后仅保留一个CV）
+%% 图四：SHPNum与CV的互相关系
+figure;
+
+% 子图1：横轴为SHPNum，纵轴为CV的均值
+subplot(1, 2, 1);
 mean_CV = zeros(size(shp_values));
 
 % 对每个SHPNum值计算均值
@@ -373,13 +378,42 @@ for i = 1:length(shp_values)
     end
 end
 
-% 绘制对比图
-figure;
 plot(shp_values, mean_CV, 'b-', 'LineWidth', 1.5, 'DisplayName', 'CV');
 xlabel('SHPNum (统计同质性像素数)');
 ylabel('变异系数均值');
 xlim([0 PixelNum]);
 title('不同SHPNum下CV的均值');
+legend('Location', 'best');
+grid on;
+
+% 子图2：横轴为CV Level，纵轴为SHPNum的均值
+subplot(1, 2, 2);
+
+% 将CV按等样本量划分为100个level
+cv_all_fig4 = Stack.CV(:);
+cv_valid_fig4 = cv_all_fig4(~isnan(cv_all_fig4));
+num_cv_levels_fig4 = 100;
+[~, cv_sort_order_fig4] = sort(cv_valid_fig4);
+cv_valid_indices_fig4 = find(~isnan(cv_all_fig4));
+cv_sorted_indices_fig4 = cv_valid_indices_fig4(cv_sort_order_fig4);
+num_cv_valid_fig4 = length(cv_sorted_indices_fig4);
+cv_group_size_fig4 = floor(num_cv_valid_fig4 / num_cv_levels_fig4);
+
+mean_SHP_per_cv = zeros(1, num_cv_levels_fig4);
+for i = 1:num_cv_levels_fig4
+    if i < num_cv_levels_fig4
+        level_idx = cv_sorted_indices_fig4((i-1)*cv_group_size_fig4+1 : i*cv_group_size_fig4);
+    else
+        level_idx = cv_sorted_indices_fig4((i-1)*cv_group_size_fig4+1 : end);
+    end
+    mean_SHP_per_cv(i) = mean(double(Stack.SHPNum(level_idx)), 'omitnan');
+end
+
+plot(1:num_cv_levels_fig4, mean_SHP_per_cv, 'r-', 'LineWidth', 1.5, 'DisplayName', 'SHPNum均值');
+xlabel('CV Level (低 \rightarrow 高)');
+ylabel('SHPNum均值');
+xlim([1 num_cv_levels_fig4]);
+title('不同CV等级下SHPNum的均值');
 legend('Location', 'best');
 grid on;
 
@@ -442,93 +476,44 @@ legend('Location', 'best');
 grid on;
 hold off;
 
-% 子图2：在不同SHPNum区间内，各窗口大小的占比
+% 子图2：在不同SHPNum取值下，各窗口大小的占比
 subplot(2, 2, 2);
 
-% 使用与图三相同的SHPNum区间
-% intervals = [2:15:107; 16:15:121]';  % 已在前面定义
-
-% 统计每个区间内各窗口大小的数量
-win_count_matrix = zeros(num_intervals, num_wins);
-for i = 1:num_intervals
-    interval_start = intervals(i, 1);
-    interval_end = intervals(i, 2);
-    
+% 按每个SHPNum整数值（1-121）统计各窗口大小的数量
+shp_range = 1:PixelNum;  % SHPNum取值范围1-121
+win_count_matrix = zeros(length(shp_range), num_wins);
+for i = 1:length(shp_range)
+    shp_val = shp_range(i);
     for j = 1:num_wins
         win_val = unique_wins(j);
-        % 找到同时满足SHPNum在区间内且Best_Win为当前窗口大小的位置
-        idx = (Stack.SHPNum >= interval_start) & (Stack.SHPNum <= interval_end) & ...
-              (Stack.Best_Win == win_val);
+        idx = (Stack.SHPNum == shp_val) & (Stack.Best_Win == win_val);
         win_count_matrix(i, j) = sum(idx(:));
     end
 end
 
 % 计算百分比
-win_percent_matrix = win_count_matrix ./ sum(win_count_matrix, 2) * 100;
-% 处理可能的NaN（某些区间可能没有数据）
+row_sums = sum(win_count_matrix, 2);
+win_percent_matrix = win_count_matrix ./ row_sums * 100;
 win_percent_matrix(isnan(win_percent_matrix)) = 0;
 
 % 绘制堆叠条形图
-h_bar = bar(1:num_intervals, win_percent_matrix, 'stacked');
-
-% 设置每个条形的颜色
 colors = lines(num_wins);  % 使用MATLAB默认的颜色方案
+h_bar = bar(shp_range, win_percent_matrix, 'stacked', 'EdgeColor', 'none');
+
 for i = 1:num_wins
     h_bar(i).FaceColor = colors(i, :);
 end
 
-% 设置x轴标签
-set(gca, 'XTick', 1:num_intervals);
-set(gca, 'XTickLabel', interval_labels);
-xtickangle(45);
-
-xlabel('SHPNum区间');
+xlabel('SHPNum (统计同质性像素数)');
 ylabel('占比 (%)');
-title('不同SHPNum区间内各窗口大小的占比分布');
+xlim([0 PixelNum+1]);
+title('不同SHPNum下各窗口大小的占比分布');
 legend(arrayfun(@(x) sprintf('%d×%d', x, x), unique_wins, 'UniformOutput', false), ...
        'Location', 'bestoutside');
 grid on;
 
-% 子图3：横轴为SHPNum，纵轴为对应SHPNum时最佳窗口的众数
-subplot(2, 2, 3);
-
-% 对每个SHPNum值计算最佳窗口的众数
-mode_win = zeros(size(shp_values));
-for i = 1:length(shp_values)
-    shp_val = shp_values(i);
-    % 找到SHPNum等于当前值的所有位置
-    idx = (Stack.SHPNum == shp_val);
-    
-    if sum(idx(:)) > 0  % 如果存在该SHPNum值的点
-        % 获取对应的Best_Win值（排除0和NaN）
-        best_wins = Stack.Best_Win(idx);
-        best_wins = best_wins(~isnan(best_wins) & best_wins > 0);
-        
-        if ~isempty(best_wins)
-            mode_win(i) = mode(best_wins);  % 计算众数
-        else
-            mode_win(i) = NaN;
-        end
-    else
-        mode_win(i) = NaN;
-    end
-end
-
-% 绘制折线图
-plot(shp_values, mode_win, 'b-o', 'LineWidth', 1.5, 'MarkerSize', 4, ...
-     'MarkerFaceColor', 'b');
-xlabel('SHPNum (统计同质性像素数)');
-ylabel('最佳窗口大小（众数）');
-xlim([0 PixelNum]);
-title('不同SHPNum下最佳窗口大小的众数');
-grid on;
-
-% 设置y轴刻度为整数
-yticks(unique_wins);
-yticklabels(arrayfun(@(x) sprintf('%d', x), unique_wins, 'UniformOutput', false));
-
-% 子图4：横轴为SHPNum，纵轴为对应SHPNum时最佳窗口的平均值
-subplot(2, 2, 4);
+% 子图3：横轴为SHPNum，纵轴为对应SHPNum时最佳窗口的平均值
+subplot(2, 2, [3, 4]);
 
 % 对每个SHPNum值计算最佳窗口的平均值
 mean_win = zeros(size(shp_values));
@@ -566,9 +551,8 @@ sgtitle('最佳窗口大小与SHPNum的关系分析', 'FontSize', 14, 'FontWeigh
 
 %% 图六：最佳窗口与CV的关系图
 % 子图1：不同最佳窗口大小对应的CV分布（箱线图）
-% 子图2：CV区间内各窗口大小的占比（堆叠条形图）
-% 子图3：横轴为CV，纵轴为最佳窗口的众数
-% 子图4：横轴为CV，纵轴为最佳窗口的平均值
+% 子图2：CV等级内各窗口大小的占比（堆叠条形图）
+% 子图3：横轴为CV等级，纵轴为最佳窗口的平均值
 
 figure('Position', [100, 100, 1400, 900]);
 
@@ -619,134 +603,82 @@ legend('Location', 'best');
 grid on;
 hold off;
 
-% 子图2：在不同CV区间内，各窗口大小的占比
+% 子图2：在不同CV等级内，各窗口大小的占比
 subplot(2, 2, 2);
 
-% 定义CV区间（按分位数划分，每个区间包含12.5%的像元）
+% 将CV按等样本量划分为100个level
 cv_all = Stack.CV(:);
-cv_all = cv_all(~isnan(cv_all));
-cv_min = min(cv_all);
-cv_max = max(cv_all);
-% 将CV按分位数划分为8个区间，每个区间包含12.5%的像元
-num_cv_intervals = 8;
-percentiles = linspace(0, 100, num_cv_intervals + 1);
-cv_edges = prctile(cv_all, percentiles);
-cv_intervals = [cv_edges(1:end-1)', cv_edges(2:end)'];
+cv_valid_fig6 = cv_all(~isnan(cv_all));
+num_cv_levels = 100;
+[~, cv_sort_order] = sort(cv_valid_fig6);
+cv_valid_indices = find(~isnan(cv_all));
+cv_sorted_indices = cv_valid_indices(cv_sort_order);
+num_cv_valid = length(cv_sorted_indices);
+cv_group_size = floor(num_cv_valid / num_cv_levels);
 
-% 统计每个区间内各窗口大小的数量
-win_count_matrix_cv = zeros(num_cv_intervals, num_wins);
-for i = 1:num_cv_intervals
-    interval_start = cv_intervals(i, 1);
-    interval_end = cv_intervals(i, 2);
+% 统计每个level内各窗口大小的数量
+win_count_matrix_cv = zeros(num_cv_levels, num_wins);
+for i = 1:num_cv_levels
+    if i < num_cv_levels
+        level_idx = cv_sorted_indices((i-1)*cv_group_size+1 : i*cv_group_size);
+    else
+        level_idx = cv_sorted_indices((i-1)*cv_group_size+1 : end);
+    end
     
     for j = 1:num_wins
         win_val = unique_wins(j);
-        % 找到同时满足CV在区间内且Best_Win为当前窗口大小的位置
-        idx = (Stack.CV >= interval_start) & (Stack.CV <= interval_end) & ...
-              (Stack.Best_Win == win_val);
-        win_count_matrix_cv(i, j) = sum(idx(:));
+        win_count_matrix_cv(i, j) = sum(Stack.Best_Win(level_idx) == win_val);
     end
 end
 
 % 计算百分比
 win_percent_matrix_cv = win_count_matrix_cv ./ sum(win_count_matrix_cv, 2) * 100;
-% 处理可能的NaN（某些区间可能没有数据）
 win_percent_matrix_cv(isnan(win_percent_matrix_cv)) = 0;
 
 % 绘制堆叠条形图
-h_bar_cv = bar(1:num_cv_intervals, win_percent_matrix_cv, 'stacked');
+h_bar_cv = bar(1:num_cv_levels, win_percent_matrix_cv, 'stacked', 'EdgeColor', 'none');
 
 % 设置每个条形的颜色
 for i = 1:num_wins
     h_bar_cv(i).FaceColor = colors(i, :);
 end
 
-% 设置x轴标签
-cv_interval_labels = arrayfun(@(i) sprintf('%.2f-%.2f', cv_intervals(i,1), cv_intervals(i,2)), ...
-                          1:num_cv_intervals, 'UniformOutput', false);
-set(gca, 'XTick', 1:num_cv_intervals);
-set(gca, 'XTickLabel', cv_interval_labels);
-xtickangle(45);
-
-xlabel('CV区间');
+xlabel('CV Level (低 \rightarrow 高)');
 ylabel('占比 (%)');
-title('不同CV区间内各窗口大小的占比分布');
+xlim([0 num_cv_levels+1]);
+title('不同CV等级内各窗口大小的占比分布');
 legend(arrayfun(@(x) sprintf('%d×%d', x, x), unique_wins, 'UniformOutput', false), ...
        'Location', 'bestoutside');
 grid on;
 
-% 子图3：横轴为CV，纵轴为对应CV时最佳窗口的众数
-subplot(2, 2, 3);
+% 子图3：横轴为CV等级，纵轴为对应CV等级时最佳窗口的平均值
+subplot(2, 2, [3, 4]);
 
-% 创建CV的采样点（使用更细的分辨率）
-cv_sample_points = linspace(cv_min, cv_max, 100);
-mode_win_cv = zeros(size(cv_sample_points));
-
-% 对每个CV采样点，使用一个小窗口内的数据计算众数
-cv_window_size = (cv_max - cv_min) / 50;  % 窗口宽度
-for i = 1:length(cv_sample_points)
-    cv_val = cv_sample_points(i);
-    % 找到CV在当前窗口内的所有位置
-    idx = (Stack.CV >= cv_val - cv_window_size/2) & ...
-          (Stack.CV <= cv_val + cv_window_size/2);
-    
-    if sum(idx(:)) > 0  % 如果存在该CV窗口内的点
-        % 获取对应的Best_Win值（排除0和NaN）
-        best_wins = Stack.Best_Win(idx);
-        best_wins = best_wins(~isnan(best_wins) & best_wins > 0);
-        
-        if ~isempty(best_wins)
-            mode_win_cv(i) = mode(best_wins);  % 计算众数
-        else
-            mode_win_cv(i) = NaN;
-        end
+% 对每个CV level计算最佳窗口的平均值
+mean_win_cv = zeros(1, num_cv_levels);
+for i = 1:num_cv_levels
+    if i < num_cv_levels
+        level_idx = cv_sorted_indices((i-1)*cv_group_size+1 : i*cv_group_size);
     else
-        mode_win_cv(i) = NaN;
+        level_idx = cv_sorted_indices((i-1)*cv_group_size+1 : end);
     end
-end
-
-% 绘制折线图
-plot(cv_sample_points, mode_win_cv, 'b-', 'LineWidth', 1.5);
-xlabel('CV');
-ylabel('最佳窗口大小（众数）');
-title('不同CV下最佳窗口大小的众数');
-grid on;
-
-% 设置y轴刻度为整数
-yticks(unique_wins);
-yticklabels(arrayfun(@(x) sprintf('%d', x), unique_wins, 'UniformOutput', false));
-
-% 子图4：横轴为CV，纵轴为对应CV时最佳窗口的平均值
-subplot(2, 2, 4);
-
-% 对每个CV采样点计算最佳窗口的平均值
-mean_win_cv = zeros(size(cv_sample_points));
-for i = 1:length(cv_sample_points)
-    cv_val = cv_sample_points(i);
-    % 找到CV在当前窗口内的所有位置
-    idx = (Stack.CV >= cv_val - cv_window_size/2) & ...
-          (Stack.CV <= cv_val + cv_window_size/2);
     
-    if sum(idx(:)) > 0  % 如果存在该CV窗口内的点
-        % 获取对应的Best_Win值（排除0和NaN）
-        best_wins = Stack.Best_Win(idx);
-        best_wins = best_wins(~isnan(best_wins) & best_wins > 0);
-        
-        if ~isempty(best_wins)
-            mean_win_cv(i) = mean(best_wins);  % 计算平均值
-        else
-            mean_win_cv(i) = NaN;
-        end
+    best_wins = Stack.Best_Win(level_idx);
+    best_wins = best_wins(~isnan(best_wins) & best_wins > 0);
+    
+    if ~isempty(best_wins)
+        mean_win_cv(i) = mean(best_wins);
     else
         mean_win_cv(i) = NaN;
     end
 end
 
 % 绘制折线图
-plot(cv_sample_points, mean_win_cv, 'r-', 'LineWidth', 2);
-xlabel('CV');
+plot(1:num_cv_levels, mean_win_cv, 'r-', 'LineWidth', 2);
+xlabel('CV Level (低 \rightarrow 高)');
 ylabel('最佳窗口大小（平均值）');
-title('不同CV下最佳窗口大小的平均值');
+xlim([1 num_cv_levels]);
+title('不同CV等级下最佳窗口大小的平均值');
 grid on;
 
 % 整体标题

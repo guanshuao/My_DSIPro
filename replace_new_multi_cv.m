@@ -3,17 +3,19 @@ clear;clc;close all;
 %% 参数设置
 coh_window_size = 3; % 相干性估计的窗口大小
 number_of_pixels = coh_window_size^2; % 窗口内像素总数
-lee_window_size = 7; % Lee滤波的窗口大小
+lee_window_size = 15; % Lee滤波的窗口大小
 rho = linspace(0, 1, 101); % 真实相关系数取值范围
-number_of_MC_trials = 10000;% 蒙特卡洛试验次数
-cv_list = [0.4 0.7 1.0 2.0 4];  % CV值列表
+number_of_MC_trials = 1000000;% 蒙特卡洛试验次数
+cv_list = [0.4 1.0 2.0 4.0];  % CV值列表
 num_cv = length(cv_list);         % CV值数量
 cv_tolerance = 0.02;      % CV浮动范围
-cv_window_size = 21;      % 计算CV的窗口大小
+cv_window_size = 15;      % 计算CV的窗口大小
 
-img = SingleRead('F:\Coh_Est\SL\MLI\20220518.rslc',1201,'cpxfloat32');
-img = flip(img);
-power = (abs(img)).^2;
+delete(gcp('nocreate')); % 关闭现有的并行池（如果有）
+parpool('local', 40); % 启用并行计算
+
+load("/sar/guanshuao/Beijing_Sentinel/SL/avg_intensity.mat");
+power = avg_intensity; % 使用平均强度作为功率图像
 
 colors = [
     0.0 0.0 1.0;   % 蓝色 - homo
@@ -176,3 +178,32 @@ xlim([0 1]);
 ylim([0 1]);
 pbaspect([1 1 1]);
 hold off;
+
+%% 导出 LaTeX 绘图所需的 txt 数据
+fprintf('\nExporting data for LaTeX pgfplots...\n');
+
+% 构建数据矩阵：第1列是真值 rho，第2列是 homo，第3及之后列分别是不同 CV 对应的数据
+% pgfplots 中 [x index=0, y index=1/2/3...] 分别对应这些列
+mean_export_data = [rho(:), rho_hat_abs_mean(:)];
+std_export_data = [rho(:), rho_hat_abs_std(:)];
+
+for cv_idx = 1:num_cv
+    mean_export_data = [mean_export_data, rho_hat_abs_mean_replace(cv_idx, :)'];
+    std_export_data = [std_export_data, rho_hat_abs_std_replace(cv_idx, :)'];
+end
+
+% 指定输出到 LaTeX 的 Figure 文件夹中
+output_dir = fullfile(fileparts(pwd), 'LaTeX', 'Figure');
+if ~exist(output_dir, 'dir')
+    mkdir(output_dir);
+end
+
+mean_file = fullfile(output_dir, 'sim_mean_data.txt');
+std_file = fullfile(output_dir, 'sim_std_data.txt');
+
+% 保存为 tab 分隔的 txt 文件
+writematrix(mean_export_data, mean_file, 'Delimiter', 'tab');
+writematrix(std_export_data, std_file, 'Delimiter', 'tab');
+
+fprintf('Successfully saved mean data to: %s\n', mean_file);
+fprintf('Successfully saved std data to: %s\n', std_file);

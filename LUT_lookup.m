@@ -47,13 +47,13 @@ function [varargout] = LUT_lookup(direction, n, value, lut_path)
     if strcmp(direction, 'forward')
         validateRho(value, LUT.rho_values);
         [result1, result2] = forwardLookup(LUT, n_idx, value_vec, output_size);
-        varargout{1} = result1;
+        varargout{1} = single(result1);
         if nargout >= 2
-            varargout{2} = result2;
+            varargout{2} = single(result2);
         end
     else
         result = inverseLookup(LUT, n_idx, value_vec, output_size, log_path);
-        varargout{1} = result;
+        varargout{1} = single(result);
         if nargout > 1
             warning('LUT_lookup:ExtraOutput', '反向查找仅返回一个输出值rho。');
         end
