@@ -25,7 +25,7 @@ end
 
 % 初始化结果矩阵
 Best_Est = zeros(rows, cols, 'single');
-Best_Win = zeros(rows, cols, 'int32');
+Best_Win = zeros(rows, cols, 'uint8'); 
 
 % 初始化一个矩阵用于存储目前发现的最小差异。
 % 从无穷大开始，这样第一次比较总是会替换它。
