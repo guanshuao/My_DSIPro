@@ -1,7 +1,7 @@
 %% 将Stack.mat文件中的数据可视化，主要是与SHP相关的可视化
 close all;clear;clc;
 
-data_dir = "D:\Research_Material\TGRS2026\Beijing_ML\Stack.mat";
+data_dir = "Stack.mat";
 % data_dir = "D:\Research_Material\TGRS2026\Beijing_SL\Stack.mat";
 % data_dir = "D:\Research_Material\TGRS2026\Kumamoto\Stack.mat";
 
@@ -10,7 +10,7 @@ load(data_dir);
 disp('Loaded Stack.mat...');
 
 %% 设置想要展示的图的ID
-figure_id = [1, 2, 3, 4]; % 例如 [1,3,4] 表示只展示图1、3、4
+figure_id = [1 2 3 4 5 6]; % 例如 [1,3,4] 表示只展示图1、3、4
 
 % - Stack结构体包含多个字段，具体如下：
 % - Calwin: 用于选取SHP、计算CV、计算RCS的窗口的大小矩阵，尺寸都一样，如 [11 11]
@@ -199,164 +199,128 @@ if ismember(3, figure_id)
     clear idx box_mean adp_mean mod_mean ratio_BoxAdp ratio_BoxMod ratio_AdpMod diff_BoxAdp diff_BoxMod diff_AdpMod;
 end
 
-%% 图四：最佳窗口大小与SHP Level的关系图
+%% 最佳窗口大小与SHP Level的关系（基础数据计算）
+if any(ismember([4, 5, 6], figure_id))
+    % 获取所有唯一的窗口大小值并排序，过滤掉0和NaN
+    unique_wins = unique(Stack.Best_Win(:));
+    unique_wins = unique_wins(~isnan(unique_wins) & unique_wins > 0);
+    unique_wins = sort(unique_wins);
+    num_wins = length(unique_wins);
+end
+
+%% 图四：不同最佳窗口大小对应的SHP Level分布（箱线图）
 if ismember(4, figure_id)
-% 子图1：不同最佳窗口大小对应的SHP Level分布（箱线图）
-% 子图2：SHP Level内各窗口大小的占比（堆叠条形图）
-% 子图3：横轴为SHP Level，纵轴为最佳窗口的分布（箱线图）
-% 子图4：横轴为SHP Level，纵轴为对应SHP Level时最佳窗口的平均值
+    figure('Name', '不同最佳窗口大小对应的SHP Level分布', 'Position', [100, 100, 800, 600]);
+    hold on;
 
-% 获取所有唯一的窗口大小值并排序，过滤掉0和NaN
-unique_wins = unique(Stack.Best_Win(:));
-unique_wins = unique_wins(~isnan(unique_wins) & unique_wins > 0);
-unique_wins = sort(unique_wins);
-num_wins = length(unique_wins);
-
-figure('Name', '最佳窗口大小与SHP Level的关系', 'Position', [100, 100, 1400, 900]);
-
-% 子图1：对于每个窗口大小，显示对应的SHP Level分布
-subplot(2, 2, 1);
-hold on;
-
-% 为每个窗口大小收集SHP Level数据
-win_shp_data = cell(num_wins, 1);
-total_len_shp = 0;
-for i = 1:num_wins
-    win_val = unique_wins(i);
-    idx = (Stack.Best_Win == win_val);
-    win_shp_data{i} = Stack.SHPNum_level(idx);
-    total_len_shp = total_len_shp + length(win_shp_data{i});
-end
-
-% 将数据转换为boxplot所需的格式（数据向量+分组向量）
-data_vec_shp = zeros(total_len_shp, 1);
-group_vec_shp = zeros(total_len_shp, 1);
-idx_start = 1;
-for i = 1:num_wins
-    len = length(win_shp_data{i});
-    if len > 0
-        data_vec_shp(idx_start:idx_start+len-1) = win_shp_data{i}(:);
-        group_vec_shp(idx_start:idx_start+len-1) = i;
-        idx_start = idx_start + len;
+    % 为每个窗口大小收集SHP Level数据
+    win_shp_data = cell(num_wins, 1);
+    total_len_shp = 0;
+    for i = 1:num_wins
+        win_val = unique_wins(i);
+        idx = (Stack.Best_Win == win_val);
+        win_shp_data{i} = Stack.SHPNum_level(idx);
+        total_len_shp = total_len_shp + length(win_shp_data{i});
     end
-end
 
-% 绘制箱线图
-h_box_shp = boxplot(data_vec_shp, group_vec_shp, 'Labels', arrayfun(@(x) sprintf('%d×%d', x, x), unique_wins, 'UniformOutput', false), ...
-                 'Colors', 'b', 'Symbol', '');
-set(h_box_shp, 'LineWidth', 1.5);
-
-% 叠加均值曲线
-mean_shp_per_win = zeros(num_wins, 1);
-for i = 1:num_wins
-    mean_shp_per_win(i) = mean(win_shp_data{i}, 'omitnan');
-end
-plot(1:num_wins, mean_shp_per_win, 'r-o', 'LineWidth', 2, 'MarkerSize', 8, ...
-     'MarkerFaceColor', 'r', 'DisplayName', '均值');
-
-xlabel('最佳窗口大小');
-ylabel('SHP Level');
-title('不同最佳窗口大小对应的SHP Level分布');
-legend('Location', 'best');
-grid on;
-hold off;
-
-% 子图2：在不同SHP Level内，各窗口大小的占比
-subplot(2, 2, 2);
-
-% 统计每个level内各窗口大小的数量
-win_count_matrix_shp = zeros(level_num, num_wins);
-for i = 1:level_num
-    level_idx = (Stack.SHPNum_level == i);
-    for j = 1:num_wins
-        win_val = unique_wins(j);
-        win_count_matrix_shp(i, j) = sum(Stack.Best_Win(level_idx) == win_val);
+    % 将数据转换为boxplot所需的格式（数据向量+分组向量）
+    data_vec_shp = zeros(total_len_shp, 1);
+    group_vec_shp = zeros(total_len_shp, 1);
+    idx_start = 1;
+    for i = 1:num_wins
+        len = length(win_shp_data{i});
+        if len > 0
+            data_vec_shp(idx_start:idx_start+len-1) = win_shp_data{i}(:);
+            group_vec_shp(idx_start:idx_start+len-1) = i;
+            idx_start = idx_start + len;
+        end
     end
+
+    % 绘制箱线图
+    h_box_shp = boxplot(data_vec_shp, group_vec_shp, 'Labels', arrayfun(@(x) sprintf('%d×%d', x, x), unique_wins, 'UniformOutput', false), ...
+                     'Colors', 'b', 'Symbol', '');
+    set(h_box_shp, 'LineWidth', 1.5);
+
+    % 叠加均值曲线
+    mean_shp_per_win = zeros(num_wins, 1);
+    for i = 1:num_wins
+        mean_shp_per_win(i) = mean(win_shp_data{i}, 'omitnan');
+    end
+    plot(1:num_wins, mean_shp_per_win, 'r-o', 'LineWidth', 2, 'MarkerSize', 8, ...
+         'MarkerFaceColor', 'r', 'DisplayName', '均值');
+
+    xlabel('最佳窗口大小');
+    ylabel('SHP Level');
+    title('不同最佳窗口大小对应的SHP Level分布');
+    legend('Location', 'best');
+    grid on;
+    hold off;
+
+    clear win_shp_data data_vec_shp group_vec_shp mean_shp_per_win;
 end
 
-% 计算百分比
-row_sums = sum(win_count_matrix_shp, 2);
-win_percent_matrix_shp = win_count_matrix_shp ./ row_sums * 100;
-win_percent_matrix_shp(isnan(win_percent_matrix_shp)) = 0;
-
-% 绘制堆叠条形图
-colors_bar = lines(num_wins);
-h_bar_shp = bar(1:level_num, win_percent_matrix_shp, 'stacked', 'EdgeColor', 'none');
-for i = 1:num_wins
-    h_bar_shp(i).FaceColor = colors_bar(i, :);
-end
-
-xlabel('SHP Level');
-ylabel('占比 (%)');
-xlim([0 level_num+1]);
-title('不同SHP等级内各窗口大小的占比分布');
-legend(arrayfun(@(x) sprintf('%d×%d', x, x), unique_wins, 'UniformOutput', false), ...
-       'Location', 'bestoutside');
-grid on;
-
-% 计算每个SHP Level下的均值和收集窗口数据
-mean_win_shp = zeros(1, level_num);
-win_data_shp = cell(level_num, 1);
-total_win_shp = 0;
-
-for i = 1:level_num
-    level_idx = (Stack.SHPNum_level == i);
-    best_wins = Stack.Best_Win(level_idx);
-    best_wins = best_wins(~isnan(best_wins) & best_wins > 0);
+%% 图五：在不同SHP等级内，各窗口大小的占比（堆叠条形图）
+if ismember(5, figure_id)
+    figure('Name', '不同SHP等级内各窗口大小的占比分布', 'Position', [150, 150, 800, 600]);
     
-    win_data_shp{i} = best_wins;
-    total_win_shp = total_win_shp + length(best_wins);
+    % 统计每个level内各窗口大小的数量
+    win_count_matrix_shp = zeros(level_num, num_wins);
+    for i = 1:level_num
+        level_idx = (Stack.SHPNum_level == i);
+        for j = 1:num_wins
+            win_val = unique_wins(j);
+            win_count_matrix_shp(i, j) = sum(Stack.Best_Win(level_idx) == win_val);
+        end
+    end
+
+    % 计算百分比
+    row_sums = sum(win_count_matrix_shp, 2);
+    win_percent_matrix_shp = win_count_matrix_shp ./ row_sums * 100;
+    win_percent_matrix_shp(isnan(win_percent_matrix_shp)) = 0;
+
+    % 绘制堆叠条形图
+    colors_bar = lines(num_wins);
+    h_bar_shp = bar(1:level_num, win_percent_matrix_shp, 'stacked', 'EdgeColor', 'none');
+    for i = 1:num_wins
+        h_bar_shp(i).FaceColor = colors_bar(i, :);
+    end
+
+    xlabel('SHP Level');
+    ylabel('占比 (%)');
+    xlim([0 level_num+1]);
+    title('不同SHP等级内各窗口大小的占比分布');
+    legend(arrayfun(@(x) sprintf('%d×%d', x, x), unique_wins, 'UniformOutput', false), ...
+           'Location', 'bestoutside');
+    grid on;
+
+    clear win_count_matrix_shp row_sums win_percent_matrix_shp h_bar_shp;
+end
+
+%% 图六：不同SHP等级下最佳窗口大小的平均值
+if ismember(6, figure_id)
+    figure('Name', '不同SHP Level下最佳窗口大小的平均值', 'Position', [200, 200, 800, 500]);
     
-    if ~isempty(best_wins)
-        mean_win_shp(i) = mean(best_wins);
-    else
-        mean_win_shp(i) = NaN;
+    % 计算每个SHP Level下的均值
+    mean_win_shp = zeros(1, level_num);
+    for i = 1:level_num
+        level_idx = (Stack.SHPNum_level == i);
+        best_wins = Stack.Best_Win(level_idx);
+        best_wins = best_wins(~isnan(best_wins) & best_wins > 0);
+        
+        if ~isempty(best_wins)
+            mean_win_shp(i) = mean(best_wins);
+        else
+            mean_win_shp(i) = NaN;
+        end
     end
-end
 
-% 子图3：横轴为SHP Level，纵轴为对应的最佳窗口分布（箱线图）
-subplot(2, 2, 3);
-hold on;
+    % 绘制折线图
+    plot(1:level_num, mean_win_shp, 'r-', 'LineWidth', 2);
+    xlabel('SHP Level');
+    ylabel('最佳窗口大小的平均值');
+    xlim([1 level_num]); ylim([0 max_win]);
+    title('不同SHP Level下最佳窗口大小的平均值');
+    grid on;
 
-data_vec_shp_win = zeros(total_win_shp, 1);
-group_vec_shp_win = zeros(total_win_shp, 1);
-idx_s = 1;
-for i = 1:level_num
-    len = length(win_data_shp{i});
-    if len > 0
-        data_vec_shp_win(idx_s:idx_s+len-1) = win_data_shp{i}(:);
-        group_vec_shp_win(idx_s:idx_s+len-1) = i;
-        idx_s = idx_s + len;
-    end
-end
-
-h_box_shp_win = boxplot(data_vec_shp_win, group_vec_shp_win, 'Colors', 'b', 'Symbol', '');
-set(h_box_shp_win, 'LineWidth', 1.0);
-
-xtick_idx = 1:5:level_num;
-set(gca, 'XTick', xtick_idx);
-set(gca, 'XTickLabel', xtick_idx);
-
-plot(1:level_num, mean_win_shp, 'r-o', 'LineWidth', 1.5, 'MarkerSize', 4, 'MarkerFaceColor', 'r', 'DisplayName', '均值');
-xlabel('SHP Level');
-ylabel('最佳窗口大小');
-title('不同SHP等级下最佳窗口大小的分布');
-grid on;
-hold off;
-
-% 子图4：横轴为SHP等级，纵轴为对应SHP等级时最佳窗口的平均值
-subplot(2, 2, 4);
-
-% 绘制折线图
-plot(1:level_num, mean_win_shp, 'r-', 'LineWidth', 2);
-xlabel('SHP Level');
-ylabel('最佳窗口大小的平均值');
-xlim([1 level_num]); ylim([0 max_win]);
-title('不同SHP Level下最佳窗口大小的平均值');
-grid on;
-
-% 整体标题
-sgtitle('最佳窗口大小与SHP Level的关系分析');
-
-    clear win_shp_data data_vec_shp group_vec_shp mean_shp_per_win win_count_matrix_shp row_sums win_percent_matrix_shp h_bar_shp mean_win_shp win_data_shp data_vec_shp_win group_vec_shp_win h_box_shp_win;
+    clear mean_win_shp;
 end

@@ -1,7 +1,7 @@
 %% 将Stack.mat文件中的数据可视化，主要是与CV相关的可视化
 close all;clear;clc;
 
-data_dir = "D:\Research_Material\TGRS2026\Beijing_ML\Stack.mat";
+data_dir = "Stack.mat";
 % data_dir = "D:\Research_Material\TGRS2026\Beijing_SL\Stack.mat";
 % data_dir = "D:\Research_Material\TGRS2026\Kumamoto\Stack.mat";
 
@@ -10,7 +10,7 @@ load(data_dir);
 disp('Loaded Stack.mat...');
 
 %% 设置想要展示的图的ID
-figure_id = [1]; % 例如 [1,3,4] 表示只展示图1、3、4
+figure_id = [4]; % 例如 [1,3,4] 表示只展示图1、3、4
 
 % - Stack结构体包含多个字段，具体如下：
 % - Calwin: 用于选取SHP、计算CV、计算RCS的窗口的大小矩阵，尺寸都一样，如 [11 11]
@@ -55,33 +55,34 @@ box_coh_fields = box_coh_fields(sort_idx);
 
 %% 图一：不同CV Level下各估计方法的相干性均值对比
 if ismember(1, figure_id)
-    mean_TrueCoh = zeros(1, level_num);
-    mean_AdpCoh = zeros(1, level_num);
-    mean_BestEst = zeros(1, level_num);
-    mean_ModifiedCoh = zeros(1, level_num);
-    mean_BoxCohMax = zeros(1, level_num);
+    if isfield(Stack, 'AdpCph')
+        adp_field = 'AdpCph';
+    elseif isfield(Stack, 'AdpCoh')
+        adp_field = 'AdpCoh';
+    else
+        adp_field = ''; % 兼容性保护
+    end
+    has_modified = isfield(Stack, 'ModifiedCoh');
     
-    for i = 1:level_num
-        idx = (Stack.CV_level == i);
-        if any(idx(:))
-            mean_TrueCoh(i) = mean(Stack.TrueCoh(idx), 'omitnan');
-            if isfield(Stack, 'AdpCph')
-                mean_AdpCoh(i) = mean(Stack.AdpCph(idx), 'omitnan');
-            elseif isfield(Stack, 'AdpCoh')
-                mean_AdpCoh(i) = mean(Stack.AdpCoh(idx), 'omitnan');
-            end
-            mean_BestEst(i) = mean(Stack.Best_Est(idx), 'omitnan');
-            if isfield(Stack, 'ModifiedCoh')
-                mean_ModifiedCoh(i) = mean(Stack.ModifiedCoh(idx), 'omitnan');
-            end
-            mean_BoxCohMax(i) = mean(BoxCoh_Max(idx), 'omitnan');
-        else
-            mean_TrueCoh(i) = NaN;
-            mean_AdpCoh(i) = NaN;
-            mean_BestEst(i) = NaN;
-            mean_ModifiedCoh(i) = NaN;
-            mean_BoxCohMax(i) = NaN;
-        end
+    % 高效按组求均值
+    valid_mask = ~isnan(Stack.CV_level) & (Stack.CV_level >= 1 & Stack.CV_level <= level_num);
+    groups = Stack.CV_level(valid_mask);
+    groups = round(groups(:));
+    
+    calc_mean = @(x) double(mean(x, 'omitnan'));
+    mean_TrueCoh = accumarray(groups, double(Stack.TrueCoh(valid_mask)), [level_num, 1], calc_mean, NaN)';
+    if ~isempty(adp_field)
+        mean_AdpCoh = accumarray(groups, double(Stack.(adp_field)(valid_mask)), [level_num, 1], calc_mean, NaN)';
+    else
+        mean_AdpCoh = NaN(1, level_num);
+    end
+    mean_BestEst = accumarray(groups, double(Stack.Best_Est(valid_mask)), [level_num, 1], calc_mean, NaN)';
+    mean_BoxCohMax = accumarray(groups, double(BoxCoh_Max(valid_mask)), [level_num, 1], calc_mean, NaN)';
+    
+    if has_modified
+        mean_ModifiedCoh = accumarray(groups, double(Stack.ModifiedCoh(valid_mask)), [level_num, 1], calc_mean, NaN)';
+    else
+        mean_ModifiedCoh = NaN(1, level_num);
     end
     
     figure('Name', '不同CV Level下的各估计方法均值对比', 'Position', [100, 100, 800, 600]);
@@ -101,25 +102,23 @@ if ismember(1, figure_id)
     legend('Location', 'best');
     grid on;
     
-    clear idx mean_TrueCoh mean_AdpCoh mean_BestEst mean_ModifiedCoh mean_BoxCohMax;
+    clear valid_mask groups calc_mean adp_field has_modified mean_TrueCoh mean_AdpCoh mean_BestEst mean_ModifiedCoh mean_BoxCohMax;
 end
 
 %% 图二：不同CV Level下的各尺寸窗口估计均值对比
 if ismember(2, figure_id)
     mean_BoxCoh_all = zeros(length(box_wins), level_num);
-    mean_TrueCoh = zeros(1, level_num);
     
-    for i = 1:level_num
-        idx = (Stack.CV_level == i);
-        if any(idx(:))
-            mean_TrueCoh(i) = mean(Stack.TrueCoh(idx), 'omitnan');
-            for j = 1:length(box_wins)
-                mean_BoxCoh_all(j, i) = mean(Stack.(box_coh_fields{j})(idx), 'omitnan');
-            end
-        else
-            mean_TrueCoh(i) = NaN;
-            mean_BoxCoh_all(:, i) = NaN;
-        end
+    valid_mask = ~isnan(Stack.CV_level) & (Stack.CV_level >= 1 & Stack.CV_level <= level_num);
+    groups = Stack.CV_level(valid_mask);
+    groups = round(groups(:));
+    
+    calc_mean = @(x) double(mean(x, 'omitnan'));
+    mean_TrueCoh = accumarray(groups, double(Stack.TrueCoh(valid_mask)), [level_num, 1], calc_mean, NaN)';
+    
+    for j = 1:length(box_wins)
+        tmp = double(Stack.(box_coh_fields{j})(valid_mask));
+        mean_BoxCoh_all(j, :) = accumarray(groups, tmp(:), [level_num, 1], calc_mean, NaN)';
     end
     
     figure('Name', '不同CV Level下的各尺寸窗口估计均值对比', 'Position', [150, 150, 800, 600]);
@@ -139,43 +138,47 @@ if ismember(2, figure_id)
     legend('Location', 'best');
     grid on;
 
-    clear idx mean_BoxCoh_all mean_TrueCoh colors;
+    clear valid_mask groups calc_mean tmp mean_BoxCoh_all mean_TrueCoh colors;
 end
 
 
 %% 图三：不同CV Level下各估计方法之间的比值和差值比较
 if ismember(3, figure_id)
-    ratio_BoxAdp = zeros(1, level_num);
-    ratio_BoxMod = zeros(1, level_num);
-    ratio_AdpMod = zeros(1, level_num);
-    diff_BoxAdp = zeros(1, level_num);
-    diff_BoxMod = zeros(1, level_num);
-    diff_AdpMod = zeros(1, level_num);
+    if isfield(Stack, 'AdpCph')
+        adp_field = 'AdpCph';
+    elseif isfield(Stack, 'AdpCoh')
+        adp_field = 'AdpCoh';
+    else
+        adp_field = ''; % 兼容性保护
+    end
+    has_modified = isfield(Stack, 'ModifiedCoh');
+
+    valid_mask = ~isnan(Stack.CV_level) & (Stack.CV_level >= 1 & Stack.CV_level <= level_num);
+    groups = Stack.CV_level(valid_mask);
+    groups = round(groups(:));
     
-    for i = 1:level_num
-        idx = (Stack.CV_level == i);
-        if any(idx(:))
-            box_mean = mean(BoxCoh_Max(idx), 'omitnan');
-            if isfield(Stack, 'AdpCph')
-                adp_mean = mean(Stack.AdpCph(idx), 'omitnan');
-            else
-                adp_mean = mean(Stack.AdpCoh(idx), 'omitnan');
-            end
-            
-            ratio_BoxAdp(i) = box_mean / adp_mean;
-            diff_BoxAdp(i) = box_mean - adp_mean;
-            
-            if isfield(Stack, 'ModifiedCoh')
-                mod_mean = mean(Stack.ModifiedCoh(idx), 'omitnan');
-                ratio_BoxMod(i) = box_mean / mod_mean;
-                ratio_AdpMod(i) = adp_mean / mod_mean;
-                diff_BoxMod(i) = box_mean - mod_mean;
-                diff_AdpMod(i) = adp_mean - mod_mean;
-            end
-        else
-            ratio_BoxAdp(i) = NaN; ratio_BoxMod(i) = NaN; ratio_AdpMod(i) = NaN;
-            diff_BoxAdp(i) = NaN; diff_BoxMod(i) = NaN; diff_AdpMod(i) = NaN;
-        end
+    calc_mean = @(x) double(mean(x, 'omitnan'));
+    mean_BoxMax_arr = accumarray(groups, double(BoxCoh_Max(valid_mask)), [level_num, 1], calc_mean, NaN)';
+    if ~isempty(adp_field)
+        mean_Adp_arr = accumarray(groups, double(Stack.(adp_field)(valid_mask)), [level_num, 1], calc_mean, NaN)';
+    else
+        mean_Adp_arr = NaN(1, level_num);
+    end
+    
+    ratio_BoxAdp = mean_BoxMax_arr ./ mean_Adp_arr;
+    diff_BoxAdp = mean_BoxMax_arr - mean_Adp_arr;
+    
+    if has_modified
+        mean_Mod_arr = accumarray(groups, double(Stack.ModifiedCoh(valid_mask)), [level_num, 1], calc_mean, NaN)';
+        ratio_BoxMod = mean_BoxMax_arr ./ mean_Mod_arr;
+        ratio_AdpMod = mean_Adp_arr ./ mean_Mod_arr;
+        diff_BoxMod = mean_BoxMax_arr - mean_Mod_arr;
+        diff_AdpMod = mean_Adp_arr - mean_Mod_arr;
+    else
+        ratio_BoxMod = NaN(1, level_num);
+        ratio_AdpMod = NaN(1, level_num);
+        diff_BoxMod = NaN(1, level_num);
+        diff_AdpMod = NaN(1, level_num);
     end
     
     figure('Name', '不同CV等级下各估计方法之间的比值和差值比较', 'Position', [200, 200, 1000, 500]);
@@ -201,167 +204,131 @@ if ismember(3, figure_id)
     xlabel('CV Level'); ylabel('相干性估计差值');
     xlim([1 level_num]); title('不同CV等级下各估计方法之间的差值对比'); legend('Location', 'best'); grid on;
 
-    clear idx box_mean adp_mean mod_mean ratio_BoxAdp ratio_BoxMod ratio_AdpMod diff_BoxAdp diff_BoxMod diff_AdpMod;
+    clear valid_mask groups calc_mean adp_field has_modified mean_BoxMax_arr mean_Adp_arr mean_Mod_arr ratio_BoxAdp ratio_BoxMod ratio_AdpMod diff_BoxAdp diff_BoxMod diff_AdpMod;
 end
 
-%% 图四：最佳窗口大小与CV Level的关系图
+%% 最佳窗口大小与CV Level的关系（基础数据计算）
+if any(ismember([4, 5, 6], figure_id))
+    % 获取所有唯一的窗口大小值并排序，过滤掉0和NaN
+    unique_wins = unique(Stack.Best_Win(:));
+    unique_wins = unique_wins(~isnan(unique_wins) & unique_wins > 0);
+    unique_wins = sort(unique_wins);
+    num_wins = length(unique_wins);
+end
+
+%% 图四：不同最佳窗口大小对应的CV分布（箱线图）
 if ismember(4, figure_id)
-% 子图1：不同最佳窗口大小对应的CV分布（箱线图）
-% 子图2：CV等级内各窗口大小的占比（堆叠条形图）
-% 子图3：横轴为CV等级，纵轴为最佳窗口的分布（箱线图）
-% 子图4：横轴为CV等级，纵轴为对应CV等级时最佳窗口的平均值
+    figure('Name', '不同最佳窗口大小对应的CV Level分布', 'Position', [100, 100, 800, 600]);
+    hold on;
 
-% 获取所有唯一的窗口大小值并排序，过滤掉0和NaN
-unique_wins = unique(Stack.Best_Win(:));
-unique_wins = unique_wins(~isnan(unique_wins) & unique_wins > 0);
-unique_wins = sort(unique_wins);
-num_wins = length(unique_wins);
-
-figure('Name', '最佳窗口大小与CV Level的关系', 'Position', [100, 100, 1400, 900]);
-
-% 子图1：对于每个窗口大小，显示对应的CV Level分布
-subplot(2, 2, 1);
-hold on;
-
-% 为每个窗口大小收集CV Level数据
-win_cv_data = cell(num_wins, 1);
-total_len_cv = 0;
-for i = 1:num_wins
-    win_val = unique_wins(i);
-    idx = (Stack.Best_Win == win_val);
-    win_cv_data{i} = Stack.CV_level(idx);
-    total_len_cv = total_len_cv + length(win_cv_data{i});
-end
-
-% 将数据转换为boxplot所需的格式（数据向量+分组向量）
-data_vec_cv = zeros(total_len_cv, 1);
-group_vec_cv = zeros(total_len_cv, 1);
-idx_start = 1;
-for i = 1:num_wins
-    len = length(win_cv_data{i});
-    if len > 0
-        data_vec_cv(idx_start:idx_start+len-1) = win_cv_data{i}(:);
-        group_vec_cv(idx_start:idx_start+len-1) = i;
-        idx_start = idx_start + len;
+    % 为每个窗口大小收集CV Level数据
+    win_cv_data = cell(num_wins, 1);
+    total_len_cv = 0;
+    for i = 1:num_wins
+        win_val = unique_wins(i);
+        idx = (Stack.Best_Win == win_val);
+        win_cv_data{i} = Stack.CV_level(idx);
+        total_len_cv = total_len_cv + length(win_cv_data{i});
     end
-end
 
-% 绘制箱线图
-h_box_cv = boxplot(data_vec_cv, group_vec_cv, 'Labels', arrayfun(@(x) sprintf('%d×%d', x, x), unique_wins, 'UniformOutput', false), ...
-                 'Colors', 'b', 'Symbol', '');
-set(h_box_cv, 'LineWidth', 1.5);
-
-% 叠加均值曲线
-mean_cv_per_win = zeros(num_wins, 1);
-for i = 1:num_wins
-    mean_cv_per_win(i) = mean(win_cv_data{i}, 'omitnan');
-end
-plot(1:num_wins, mean_cv_per_win, 'r-o', 'LineWidth', 2, 'MarkerSize', 8, ...
-     'MarkerFaceColor', 'r', 'DisplayName', '均值');
-
-xlabel('最佳窗口大小');
-ylabel('CV Level');
-title('不同最佳窗口大小对应的CV Level分布');
-legend('Location', 'best');
-grid on;
-hold off;
-
-% 子图2：在不同CV等级内，各窗口大小的占比
-subplot(2, 2, 2);
-
-% 统计每个level内各窗口大小的数量
-win_count_matrix_cv = zeros(level_num, num_wins);
-for i = 1:level_num
-    level_idx = (Stack.CV_level == i);
-    for j = 1:num_wins
-        win_val = unique_wins(j);
-        win_count_matrix_cv(i, j) = sum(Stack.Best_Win(level_idx) == win_val);
+    % 将数据转换为boxplot所需的格式（数据向量+分组向量）
+    data_vec_cv = zeros(total_len_cv, 1);
+    group_vec_cv = zeros(total_len_cv, 1);
+    idx_start = 1;
+    for i = 1:num_wins
+        len = length(win_cv_data{i});
+        if len > 0
+            data_vec_cv(idx_start:idx_start+len-1) = win_cv_data{i}(:);
+            group_vec_cv(idx_start:idx_start+len-1) = i;
+            idx_start = idx_start + len;
+        end
     end
-end
 
-% 计算百分比
-row_sums = sum(win_count_matrix_cv, 2);
-win_percent_matrix_cv = win_count_matrix_cv ./ row_sums * 100;
-win_percent_matrix_cv(isnan(win_percent_matrix_cv)) = 0;
+    % 绘制箱线图
+    h_box_cv = boxplot(data_vec_cv, group_vec_cv, 'Labels', arrayfun(@(x) sprintf('%d×%d', x, x), unique_wins, 'UniformOutput', false), ...
+                     'Colors', 'b', 'Symbol', '');
+    set(h_box_cv, 'LineWidth', 1.5);
 
-% 绘制堆叠条形图
-colors_bar = lines(num_wins);
-h_bar_cv = bar(1:level_num, win_percent_matrix_cv, 'stacked', 'EdgeColor', 'none');
-for i = 1:num_wins
-    h_bar_cv(i).FaceColor = colors_bar(i, :);
-end
+    % 叠加均值曲线
+    mean_cv_per_win = zeros(num_wins, 1);
+    for i = 1:num_wins
+        mean_cv_per_win(i) = mean(win_cv_data{i}, 'omitnan');
+    end
+    plot(1:num_wins, mean_cv_per_win, 'r-o', 'LineWidth', 2, 'MarkerSize', 8, ...
+         'MarkerFaceColor', 'r', 'DisplayName', '均值');
 
-xlabel('CV Level');
-ylabel('占比 (%)');
-xlim([0 level_num+1]);
-title('不同CV等级内各窗口大小的占比分布');
-legend(arrayfun(@(x) sprintf('%d×%d', x, x), unique_wins, 'UniformOutput', false), ...
-       'Location', 'bestoutside');
-grid on;
-
-% 计算每个CV Level下的均值和收集窗口数据
-mean_win_cv = zeros(1, level_num);
-win_data_cv = cell(level_num, 1);
-total_win_cv = 0;
-
-for i = 1:level_num
-    level_idx = (Stack.CV_level == i);
-    best_wins = Stack.Best_Win(level_idx);
-    best_wins = best_wins(~isnan(best_wins) & best_wins > 0);
+    xlabel('最佳窗口大小');
+    ylabel('CV Level');
+    title('不同最佳窗口大小对应的CV Level分布');
+    legend('Location', 'best');
+    grid on;
+    hold off;
     
-    win_data_cv{i} = best_wins;
-    total_win_cv = total_win_cv + length(best_wins);
-    
-    if ~isempty(best_wins)
-        mean_win_cv(i) = mean(best_wins);
-    else
-        mean_win_cv(i) = NaN;
-    end
+    clear win_cv_data data_vec_cv group_vec_cv mean_cv_per_win;
 end
 
-% 子图3：横轴为CV Level，纵轴为对应的最佳窗口分布（箱线图）
-subplot(2, 2, 3);
-hold on;
-
-data_vec_cv_win = zeros(total_win_cv, 1);
-group_vec_cv_win = zeros(total_win_cv, 1);
-idx_s = 1;
-for i = 1:level_num
-    len = length(win_data_cv{i});
-    if len > 0
-        data_vec_cv_win(idx_s:idx_s+len-1) = win_data_cv{i}(:);
-        group_vec_cv_win(idx_s:idx_s+len-1) = i;
-        idx_s = idx_s + len;
+%% 图五：在不同CV等级内，各窗口大小的占比（堆叠条形图）
+if ismember(5, figure_id)
+    figure('Name', '不同CV等级内各窗口大小的占比分布', 'Position', [150, 150, 800, 600]);
+    
+    % 统计每个level内各窗口大小的数量
+    win_count_matrix_cv = zeros(level_num, num_wins);
+    for i = 1:level_num
+        level_idx = (Stack.CV_level == i);
+        for j = 1:num_wins
+            win_val = unique_wins(j);
+            win_count_matrix_cv(i, j) = sum(Stack.Best_Win(level_idx) == win_val);
+        end
     end
+
+    % 计算百分比
+    row_sums = sum(win_count_matrix_cv, 2);
+    win_percent_matrix_cv = win_count_matrix_cv ./ row_sums * 100;
+    win_percent_matrix_cv(isnan(win_percent_matrix_cv)) = 0;
+
+    % 绘制堆叠条形图
+    colors_bar = lines(num_wins);
+    h_bar_cv = bar(1:level_num, win_percent_matrix_cv, 'stacked', 'EdgeColor', 'none');
+    for i = 1:num_wins
+        h_bar_cv(i).FaceColor = colors_bar(i, :);
+    end
+
+    xlabel('CV Level');
+    ylabel('占比 (%)');
+    xlim([0 level_num+1]);
+    title('不同CV等级内各窗口大小的占比分布');
+    legend(arrayfun(@(x) sprintf('%d×%d', x, x), unique_wins, 'UniformOutput', false), ...
+           'Location', 'bestoutside');
+    grid on;
+    
+    clear win_count_matrix_cv row_sums win_percent_matrix_cv h_bar_cv;
 end
 
-h_box_cv_win = boxplot(data_vec_cv_win, group_vec_cv_win, 'Colors', 'b', 'Symbol', '');
-set(h_box_cv_win, 'LineWidth', 1.0);
-
-xtick_idx = 1:5:level_num;
-set(gca, 'XTick', xtick_idx);
-set(gca, 'XTickLabel', xtick_idx);
-
-plot(1:level_num, mean_win_cv, 'r-o', 'LineWidth', 1.5, 'MarkerSize', 4, 'MarkerFaceColor', 'r', 'DisplayName', '均值');
-xlabel('CV Level');
-ylabel('最佳窗口大小');
-title('不同CV Level下最佳窗口大小的分布');
-grid on;
-hold off;
-
-% 子图4：横轴为CV等级，纵轴为对应CV等级时最佳窗口的平均值
-subplot(2, 2, 4);
-
-% 绘制折线图
-plot(1:level_num, mean_win_cv, 'r-', 'LineWidth', 2);
-xlabel('CV Level');
-ylabel('最佳窗口大小的平均值');
-xlim([1 level_num]); ylim([0 max_win]);
-title('不同CV Level下最佳窗口大小的平均值');
-grid on;
-
-% 整体标题
-sgtitle('最佳窗口大小与CV Level的关系分析');
+%% 图六：不同CV等级下最佳窗口大小的平均值
+if ismember(6, figure_id)
+    figure('Name', '不同CV Level下最佳窗口大小的平均值', 'Position', [200, 200, 800, 500]);
     
-    clear win_cv_data data_vec_cv group_vec_cv mean_cv_per_win win_count_matrix_cv row_sums win_percent_matrix_cv h_bar_cv mean_win_cv win_data_cv data_vec_cv_win group_vec_cv_win h_box_cv_win;
+    % 计算每个CV Level下的均值
+    mean_win_cv = zeros(1, level_num);
+    for i = 1:level_num
+        level_idx = (Stack.CV_level == i);
+        best_wins = Stack.Best_Win(level_idx);
+        best_wins = best_wins(~isnan(best_wins) & best_wins > 0);
+        
+        if ~isempty(best_wins)
+            mean_win_cv(i) = mean(best_wins);
+        else
+            mean_win_cv(i) = NaN;
+        end
+    end
+
+    % 绘制折线图
+    plot(1:level_num, mean_win_cv, 'r-', 'LineWidth', 2);
+    xlabel('CV Level');
+    ylabel('最佳窗口大小的平均值');
+    xlim([1 level_num]); ylim([0 max_win]);
+    title('不同CV Level下最佳窗口大小的平均值');
+    grid on;
+    
+    clear mean_win_cv;
 end
